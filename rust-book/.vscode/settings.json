@@ -1,5 +1,8 @@
 {
     "rust-analyzer.linkedProjects": [
-        "2-programming-a-guessing-game/guessing_game/Cargo.toml"
+        "2-programming-a-guessing-game/guessing_game/Cargo.toml",
+        "3-common-programming-concepts/fizzbuzz/Cargo.toml",
+        "3-common-programming-concepts/rocket_countdown/Cargo.toml",
+        "3-common-programming-concepts/coin_sorter/Cargo.toml"
     ]
 }
