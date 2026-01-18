@@ -1,75 +1,64 @@
 fn main() {
-    // println!("Hello, world!");
+    let s = String::from("hello world");
+    let v: Vec<i32> = vec![1, 2, 3];
 
-    // let s = return_a_static_string();
-    // println!("{}", s);
+    let word_last_index = first_word_last_index(&s);
+    let word: &str = first_word(&s);
 
-    // // 1. Create a destination vector with some initial data
-    // let mut my_dst = vec![
-    //     String::from("cat"),
-    //     String::from("sheep"), // Max length is 5
-    // ];
+    println!("{}", word_last_index);
+    println!("Slice {}", &s[..word_last_index]);
+    println!("Slice {}", word);
 
-    // // 2. Create a source slice
-    // let my_src = vec![
-    //     String::from("cow"),          // len 3 (too short)
-    //     String::from("elephant"),     // len 8 (BIGGER! will add)
-    //     String::from("dog"),          // len 3 (too short)
-    //     String::from("hippopotamus"), // len 12 (BIGGER! will add)
-    // ];
+    println!("{:?}", &v[..2]);
 
-    // // 3. Call the function
-    // add_big_strings(&mut my_dst, &my_src);
+    let my_string = String::from("hello world");
 
-    // // 4. Print the result
-    // // Expected: cat, sheep, elephant, hippopotamus
-    // println!("Result: {:?}", my_dst);
+    // `first_word` works on slices of `String`s, whether partial or whole.
+    let word = first_word(&my_string[0..6]);
+    let word = first_word(&my_string[..]);
+    // `first_word` also works on references to `String`s, which are equivalent
+    // to whole slices of `String`s.
+    let word = first_word(&my_string);
 
-    // let num = 1;
-    // let ref_num_1 = &num;
-    // let ref_num_2 = &num;
-    // println!("{} {}", ref_num_1, ref_num_2);
+    let my_string_literal = "hello world";
 
-    // let mut name = (String::from("Ferris"), String::from("Rustacean"));
-    // let first = &name.0;
-    // name.1.push_str(", Esq.");
-    // println!("{first} {}", name.1);
+    // `first_word` works on slices of string literals, whether partial or
+    // whole.
+    let word = first_word(&my_string_literal[0..6]);
+    let word = first_word(&my_string_literal[..]);
 
-    // let mut v = vec![1, 2, 3];
-    // copy_to_prev(&mut v, 1);
+    // Because string literals *are* string slices already,
+    // this works too, without the slice syntax!
+    let word = first_word(my_string_literal);
 
-    // let name = String::from("Ferris");
-    // award_phd(&name);
-    // println!("{}", name);
+    let arr = [1, 2, 3, 4, 5];
+    let a = [1, 2, 3, 4, 5];
 
-    let mut point = [0, 1];
-    let mut x = point[0];
-    let y = &mut point[1];
-    x += 1;
-    *y += 1;
-    println!("{} {}", point[0], point[1]);
+    let slice = &a[1..3];
+
+    assert_eq!(slice, &[2, 3]);
 }
 
-fn return_a_static_string() -> &'static str {
-    "Hello world from a function"
-}
+fn first_word_last_index(s: &String) -> usize {
+    let bytes = s.as_bytes();
 
-/// Adds "Ph.D." to a person's name
-// fn award_phd(name: &String) {
-//     let mut name = *name;
-//     name.push_str(", Ph.D.");
-// }
-
-fn add_big_strings(dst: &mut Vec<String>, src: &[String]) {
-    let largest_len: usize = dst.iter().map(|s| s.len()).max().unwrap_or(0);
-    for s in src {
-        if s.len() > largest_len {
-            dst.push(s.clone());
+    for (i, &item) in bytes.iter().enumerate() {
+        if item == b' ' {
+            return i;
         }
     }
+
+    s.len()
 }
 
-// fn copy_to_prev(v: &mut Vec<i32>, i: usize) {
-// let n = &mut v[i];
-// *n = v[i - 1];
-// }
+fn first_word(s: &str) -> &str {
+    let bytes = s.as_bytes();
+
+    for (i, &item) in bytes.iter().enumerate() {
+        if item == b' ' {
+            return &s[0..i];
+        }
+    }
+
+    &s[..]
+}
