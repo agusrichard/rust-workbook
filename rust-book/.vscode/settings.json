@@ -4,6 +4,7 @@
         "3-common-programming-concepts/fizzbuzz/Cargo.toml",
         "3-common-programming-concepts/rocket_countdown/Cargo.toml",
         "3-common-programming-concepts/coin_sorter/Cargo.toml",
-        "4-understanding-ownership/playground_4_3/Cargo.toml"
+        "4-understanding-ownership/playground_4_3/Cargo.toml",
+        "4-understanding-ownership/playground_4_5/Cargo.toml"
     ]
 }
