@@ -17,3 +17,9 @@ pbkdf2 = "0.12.2"
 hmac = "0.12.1"
 rand = "0.8.5"
 base64 = "0.22.1"
+
+[dev-dependencies]
+assert_cmd = "2.0"
+predicates = "3.1"
+tempfile = "3.10"
+
