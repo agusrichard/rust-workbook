@@ -1,8 +1,8 @@
 use aes_gcm::{
+    aead::{Aead, AeadCore, KeyInit, OsRng, generic_array::GenericArray},
     Aes256Gcm, Key,
-    aead::{Aead, AeadCore, KeyInit, OsRng},
 };
-use base64::{Engine as _, engine::general_purpose};
+use base64::{engine::general_purpose, Engine as _};
 use hmac::Hmac;
 use pbkdf2::pbkdf2;
 use rand::RngCore;
@@ -19,6 +19,35 @@ pub struct PasswordEntry {
     pub encrypted_password: String,
     pub salt: String,
     pub nonce: String,
+}
+
+impl PasswordEntry {
+    pub fn decrypt(&self, master_password: &str) -> io::Result<String> {
+        let salt = general_purpose::STANDARD
+            .decode(&self.salt)
+            .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e.to_string()))?;
+        let nonce_bytes = general_purpose::STANDARD
+            .decode(&self.nonce)
+            .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e.to_string()))?;
+        let ciphertext = general_purpose::STANDARD
+            .decode(&self.encrypted_password)
+            .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e.to_string()))?;
+
+        let mut key = [0u8; 32];
+        pbkdf2::<Hmac<Sha256>>(master_password.as_bytes(), &salt, 100_000, &mut key)
+            .expect("PBKDF2 failed");
+        
+        let key = Key::<Aes256Gcm>::from_slice(&key);
+        let cipher = Aes256Gcm::new(key);
+        let nonce = GenericArray::from_slice(&nonce_bytes);
+
+        let plaintext = cipher
+            .decrypt(nonce, ciphertext.as_ref())
+            .map_err(|e| io::Error::new(io::ErrorKind::Other, e.to_string()))?;
+
+        String::from_utf8(plaintext)
+            .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e.to_string()))
+    }
 }
 
 pub fn get_store_path() -> PathBuf {

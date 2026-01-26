@@ -25,6 +25,13 @@ struct AddCommand {
     username: String,
 }
 
+#[derive(Args)]
+struct GetCommand {
+    /// The name of the service to retrieve
+    #[arg(short, long)]
+    service: String,
+}
+
 #[derive(Subcommand)]
 #[command(verbatim_doc_comment)]
 enum Commands {
@@ -36,6 +43,13 @@ enum Commands {
     /// EXAMPLES:
     ///    safepass add --service google --username user@gmail.com
     Add(AddCommand),
+    /// Retrieves a password from the vault.
+    ///
+    /// You will be prompted for the master password to decrypt the entry.
+    ///
+    /// EXAMPLES:
+    ///    safepass get --service google
+    Get(GetCommand),
 }
 
 fn verify_user_password() -> String {
@@ -114,6 +128,36 @@ fn handle_add_command(add_cmd: AddCommand, master_password: &str) {
     }
 }
 
+fn handle_get_command(get_cmd: GetCommand, master_password: &str) {
+    let entries = match storage::load_entries() {
+        Ok(e) => e,
+        Err(e) => {
+            eprintln!("Failed to load entries: {}", e);
+            process::exit(1);
+        }
+    };
+
+    let entry = match entries.into_iter().find(|e| e.service == get_cmd.service) {
+        Some(e) => e,
+        None => {
+            eprintln!("Service '{}' not found.", get_cmd.service);
+            process::exit(1);
+        }
+    };
+
+    match entry.decrypt(master_password) {
+        Ok(password) => {
+            println!("Service: {}", entry.service);
+            println!("Username: {}", entry.username);
+            println!("Password: {}", password);
+        }
+        Err(e) => {
+            eprintln!("Failed to decrypt password: {}", e);
+            process::exit(1);
+        }
+    }
+}
+
 fn main() {
     let cli = Cli::parse();
 
@@ -121,5 +165,6 @@ fn main() {
 
     match cli.command {
         Commands::Add(add_cmd) => handle_add_command(add_cmd, &master_password),
+        Commands::Get(get_cmd) => handle_get_command(get_cmd, &master_password),
     };
 }
