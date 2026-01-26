@@ -30,6 +30,29 @@ struct GetCommand {
     /// The name of the service to retrieve
     #[arg(short, long)]
     service: String,
+    /// The username for the service
+    #[arg(short, long)]
+    username: String,
+}
+
+#[derive(Args)]
+struct DeleteCommand {
+    /// The name of the service to delete
+    #[arg(short, long)]
+    service: String,
+    /// The username for the service
+    #[arg(short, long)]
+    username: String,
+}
+
+#[derive(Args)]
+struct UpdateCommand {
+    /// The name of the service
+    #[arg(short, long)]
+    service: String,
+    /// The username for the service
+    #[arg(short, long)]
+    username: String,
 }
 
 #[derive(Subcommand)]
@@ -43,13 +66,27 @@ enum Commands {
     /// EXAMPLES:
     ///    safepass add --service google --username user@gmail.com
     Add(AddCommand),
+    /// Updates an existing password entry in the vault.
+    ///
+    /// You will be prompted for the master password and the new password.
+    ///
+    /// EXAMPLES:
+    ///    safepass update --service google --username user@gmail.com
+    Update(UpdateCommand),
     /// Retrieves a password from the vault.
     ///
     /// You will be prompted for the master password to decrypt the entry.
     ///
     /// EXAMPLES:
-    ///    safepass get --service google
+    ///    safepass get --service google --username user@gmail.com
     Get(GetCommand),
+    /// Deletes a password entry from the vault.
+    ///
+    /// You will be prompted for the master password to confirm deletion.
+    ///
+    /// EXAMPLES:
+    ///    safepass delete --service google --username user@gmail.com
+    Delete(DeleteCommand),
     /// Lists all services and usernames stored in the vault.
     List,
 }
@@ -94,8 +131,30 @@ fn verify_user_password() -> String {
 }
 
 fn handle_add_command(add_cmd: AddCommand, master_password: &str) {
+    match storage::load_entries() {
+        Ok(entries) => {
+            if entries
+                .iter()
+                .any(|e| e.service == add_cmd.service && e.username == add_cmd.username)
+            {
+                eprintln!(
+                    "Service '{}' with username '{}' already exists.",
+                    add_cmd.service, add_cmd.username
+                );
+                process::exit(1);
+            }
+        }
+        Err(e) => {
+            eprintln!("Failed to load entries: {}", e);
+            process::exit(1);
+        }
+    }
+
     println!("Adding password for service: {}", add_cmd.service);
-    let password = match rpassword::prompt_password("Enter password for service: ") {
+    let password = match rpassword::prompt_password(format!(
+        "Enter password for service `{}`: ",
+        add_cmd.service
+    )) {
         Ok(p) => p,
         Err(e) => {
             eprintln!("Failed to read password: {}", e);
@@ -130,6 +189,64 @@ fn handle_add_command(add_cmd: AddCommand, master_password: &str) {
     }
 }
 
+fn handle_update_command(update_cmd: UpdateCommand, master_password: &str) {
+    match storage::load_entries() {
+        Ok(entries) => {
+            if !entries.iter().any(|e| {
+                e.service == update_cmd.service && e.username == update_cmd.username
+            }) {
+                eprintln!(
+                    "Service '{}' with username '{}' not found.",
+                    update_cmd.service, update_cmd.username
+                );
+                process::exit(1);
+            }
+        }
+        Err(e) => {
+            eprintln!("Failed to load entries: {}", e);
+            process::exit(1);
+        }
+    }
+
+    println!("Updating password for service: {}", update_cmd.service);
+    let password = match rpassword::prompt_password(format!(
+        "Enter new password for service `{}`: ",
+        update_cmd.service
+    )) {
+        Ok(p) => p,
+        Err(e) => {
+            eprintln!("Failed to read password: {}", e);
+            process::exit(1);
+        }
+    };
+
+    let confirm = match rpassword::prompt_password("Confirm password: ") {
+        Ok(p) => p,
+        Err(e) => {
+            eprintln!("Failed to read password: {}", e);
+            process::exit(1);
+        }
+    };
+
+    if password != confirm {
+        eprintln!("Passwords do not match!");
+        process::exit(1);
+    }
+
+    match storage::update_entry(
+        &update_cmd.service,
+        &update_cmd.username,
+        &password,
+        master_password,
+    ) {
+        Ok(_) => println!("Password for {} updated successfully.", update_cmd.service),
+        Err(e) => {
+            eprintln!("Failed to update entry: {}", e);
+            process::exit(1);
+        }
+    }
+}
+
 fn handle_get_command(get_cmd: GetCommand, master_password: &str) {
     let entries = match storage::load_entries() {
         Ok(e) => e,
@@ -139,10 +256,16 @@ fn handle_get_command(get_cmd: GetCommand, master_password: &str) {
         }
     };
 
-    let entry = match entries.into_iter().find(|e| e.service == get_cmd.service) {
+    let entry = match entries
+        .into_iter()
+        .find(|e| e.service == get_cmd.service && e.username == get_cmd.username)
+    {
         Some(e) => e,
         None => {
-            eprintln!("Service '{}' not found.", get_cmd.service);
+            eprintln!(
+                "Service '{}' with username '{}' not found.",
+                get_cmd.service, get_cmd.username
+            );
             process::exit(1);
         }
     };
@@ -155,6 +278,26 @@ fn handle_get_command(get_cmd: GetCommand, master_password: &str) {
         }
         Err(e) => {
             eprintln!("Failed to decrypt password: {}", e);
+            process::exit(1);
+        }
+    }
+}
+
+fn handle_delete_command(delete_cmd: DeleteCommand) {
+    match storage::delete_entry(&delete_cmd.service, &delete_cmd.username) {
+        Ok(_) => println!(
+            "Service '{}' for user '{}' deleted successfully.",
+            delete_cmd.service, delete_cmd.username
+        ),
+        Err(e) => {
+            if e.kind() == std::io::ErrorKind::NotFound {
+                eprintln!(
+                    "Service '{}' with username '{}' not found.",
+                    delete_cmd.service, delete_cmd.username
+                );
+            } else {
+                eprintln!("Failed to delete entry: {}", e);
+            }
             process::exit(1);
         }
     }
@@ -188,7 +331,9 @@ fn main() {
 
     match cli.command {
         Commands::Add(add_cmd) => handle_add_command(add_cmd, &master_password),
+        Commands::Update(update_cmd) => handle_update_command(update_cmd, &master_password),
         Commands::Get(get_cmd) => handle_get_command(get_cmd, &master_password),
+        Commands::Delete(delete_cmd) => handle_delete_command(delete_cmd),
         Commands::List => handle_list_command(),
     };
 }

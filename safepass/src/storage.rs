@@ -101,10 +101,16 @@ pub fn save_entry(
         Err(e) => return Err(e),
     };
 
-    if entries.iter().any(|e| e.service == service) {
+    if entries
+        .iter()
+        .any(|e| e.service == service && e.username == username)
+    {
         return Err(io::Error::new(
             io::ErrorKind::AlreadyExists,
-            format!("Service '{}' already exists", service),
+            format!(
+                "Service '{}' with username '{}' already exists",
+                service, username
+            ),
         ));
     }
 
@@ -136,6 +142,83 @@ pub fn save_entry(
     };
 
     entries.push(entry);
+
+    let path = get_store_path();
+    let file = File::create(path)?;
+    let writer = BufWriter::new(file);
+    serde_json::to_writer_pretty(writer, &entries)?;
+
+    Ok(())
+}
+
+pub fn update_entry(
+    service: &str,
+    username: &str,
+    new_password: &str,
+    master_password: &str,
+) -> io::Result<()> {
+    let mut entries = load_entries()?;
+    
+    let index = entries
+        .iter()
+        .position(|e| e.service == service && e.username == username);
+
+    if let Some(idx) = index {
+        // Generate Salt
+        let mut salt = [0u8; 16];
+        rand::thread_rng().fill_bytes(&mut salt);
+
+        // Derive Key
+        let mut key = [0u8; 32]; // AES-256
+        pbkdf2::<Hmac<Sha256>>(master_password.as_bytes(), &salt, 100_000, &mut key)
+            .expect("PBKDF2 failed");
+        let key = Key::<Aes256Gcm>::from_slice(&key);
+        let cipher = Aes256Gcm::new(key);
+
+        // Generate Nonce
+        let nonce = Aes256Gcm::generate_nonce(&mut OsRng); // 96-bits; unique per message
+
+        // Encrypt
+        let ciphertext = cipher
+            .encrypt(&nonce, new_password.as_bytes())
+            .map_err(|e| io::Error::new(io::ErrorKind::Other, e.to_string()))?;
+
+        let new_entry = PasswordEntry {
+            service: service.to_string(),
+            username: username.to_string(),
+            encrypted_password: general_purpose::STANDARD.encode(ciphertext),
+            salt: general_purpose::STANDARD.encode(salt),
+            nonce: general_purpose::STANDARD.encode(nonce),
+        };
+
+        entries[idx] = new_entry;
+
+        let path = get_store_path();
+        let file = File::create(path)?;
+        let writer = BufWriter::new(file);
+        serde_json::to_writer_pretty(writer, &entries)?;
+
+        Ok(())
+    } else {
+        Err(io::Error::new(
+            io::ErrorKind::NotFound,
+            format!("Service '{}' with username '{}' not found", service, username),
+        ))
+    }
+}
+
+pub fn delete_entry(service: &str, username: &str) -> io::Result<()> {
+    let mut entries = load_entries()?;
+    let original_len = entries.len();
+    
+    entries.retain(|e| e.service != service || e.username != username);
+    
+    if entries.len() == original_len {
+        return Err(io::Error::new(
+            io::ErrorKind::NotFound, 
+            format!("Service '{}' with username '{}' not found", service, username)
+        ));
+    }
 
     let path = get_store_path();
     let file = File::create(path)?;
