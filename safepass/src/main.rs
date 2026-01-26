@@ -50,6 +50,8 @@ enum Commands {
     /// EXAMPLES:
     ///    safepass get --service google
     Get(GetCommand),
+    /// Lists all services and usernames stored in the vault.
+    List,
 }
 
 fn verify_user_password() -> String {
@@ -158,6 +160,27 @@ fn handle_get_command(get_cmd: GetCommand, master_password: &str) {
     }
 }
 
+fn handle_list_command() {
+    let entries = match storage::load_entries() {
+        Ok(e) => e,
+        Err(e) => {
+            eprintln!("Failed to load entries: {}", e);
+            process::exit(1);
+        }
+    };
+
+    if entries.is_empty() {
+        println!("No entries found in the vault.");
+        return;
+    }
+
+    println!("{:<20} {:<30}", "SERVICE", "USERNAME");
+    println!("{}", "-".repeat(50));
+    for entry in entries {
+        println!("{:<20} {:<30}", entry.service, entry.username);
+    }
+}
+
 fn main() {
     let cli = Cli::parse();
 
@@ -166,5 +189,6 @@ fn main() {
     match cli.command {
         Commands::Add(add_cmd) => handle_add_command(add_cmd, &master_password),
         Commands::Get(get_cmd) => handle_get_command(get_cmd, &master_password),
+        Commands::List => handle_list_command(),
     };
 }
