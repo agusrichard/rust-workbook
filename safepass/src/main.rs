@@ -1,24 +1,44 @@
-use clap::{Parser, Subcommand};
+use clap::{Args, Parser, Subcommand};
 use pam::Authenticator;
 use std::process;
 
+mod storage;
+
 #[derive(Parser)]
-#[command(name = "safepass")]
-#[command(about = "A secure password manager CLI", long_about = None)]
+#[command(author, version, about)]
+#[command(
+    long_about = "A command-line tool to securely store and retrieve passwords, \
+                        protected by your macOS user credentials."
+)]
 struct Cli {
     #[command(subcommand)]
     command: Commands,
 }
 
-#[derive(Subcommand)]
-enum Commands {
-    /// Add a new password entry
-    Add { service: String },
-    /// Retrieve a password entry
-    Get { service: String },
+#[derive(Args)]
+struct AddCommand {
+    /// The name of the service (e.g., google, github)
+    #[arg(short, long)]
+    service: String,
+    /// The username for the service
+    #[arg(short, long)]
+    username: String,
 }
 
-fn verify_user_password() {
+#[derive(Subcommand)]
+#[command(verbatim_doc_comment)]
+enum Commands {
+    /// Adds a new password entry to the vault.
+    ///
+    /// The service name must be unique. You will be prompted for the master password
+    /// and the new password for the service.
+    ///
+    /// EXAMPLES:
+    ///    safepass add --service google --username user@gmail.com
+    Add(AddCommand),
+}
+
+fn verify_user_password() -> String {
     let username = whoami::username();
 
     const RETRIES: u32 = 3;
@@ -47,9 +67,9 @@ fn verify_user_password() {
             .set_credentials(&username, &password);
 
         if let Err(_) = authenticator.authenticate() {
-            eprintln!("Wrong password");
+            println!("Wrong password");
         } else {
-            return;
+            return password;
         }
     }
 
@@ -57,17 +77,49 @@ fn verify_user_password() {
     process::exit(1);
 }
 
+fn handle_add_command(add_cmd: AddCommand, master_password: &str) {
+    println!("Adding password for service: {}", add_cmd.service);
+    let password = match rpassword::prompt_password("Enter password for service: ") {
+        Ok(p) => p,
+        Err(e) => {
+            eprintln!("Failed to read password: {}", e);
+            process::exit(1);
+        }
+    };
+
+    let confirm = match rpassword::prompt_password("Confirm password: ") {
+        Ok(p) => p,
+        Err(e) => {
+            eprintln!("Failed to read password: {}", e);
+            process::exit(1);
+        }
+    };
+
+    if password != confirm {
+        eprintln!("Passwords do not match!");
+        process::exit(1);
+    }
+
+    match storage::save_entry(
+        &add_cmd.service,
+        &add_cmd.username,
+        &password,
+        master_password,
+    ) {
+        Ok(_) => println!("Password for {} added successfully.", add_cmd.service),
+        Err(e) => {
+            eprintln!("Failed to save entry: {}", e);
+            process::exit(1);
+        }
+    }
+}
+
 fn main() {
     let cli = Cli::parse();
 
-    verify_user_password();
+    let master_password = verify_user_password();
 
-    match &cli.command {
-        Commands::Add { service } => {
-            println!("Adding password for: {}", service);
-        }
-        Commands::Get { service } => {
-            println!("Retrieving password for: {}", service);
-        }
-    }
+    match cli.command {
+        Commands::Add(add_cmd) => handle_add_command(add_cmd, &master_password),
+    };
 }

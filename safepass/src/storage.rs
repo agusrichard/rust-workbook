@@ -1,0 +1,117 @@
+use aes_gcm::{
+    Aes256Gcm, Key,
+    aead::{Aead, AeadCore, KeyInit, OsRng},
+};
+use base64::{Engine as _, engine::general_purpose};
+use hmac::Hmac;
+use pbkdf2::pbkdf2;
+use rand::RngCore;
+use serde::{Deserialize, Serialize};
+use sha2::Sha256;
+use std::fs::{self, File};
+use std::io::{self, BufReader, BufWriter};
+use std::path::PathBuf;
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct PasswordEntry {
+    pub service: String,
+    pub username: String,
+    pub encrypted_password: String,
+    pub salt: String,
+    pub nonce: String,
+}
+
+pub fn get_store_path() -> PathBuf {
+    let mut path = dirs::home_dir().expect("Could not find home directory");
+    path.push(".safepass");
+    if !path.exists() {
+        fs::create_dir(&path).ok();
+    }
+    path.push("store.json");
+    path
+}
+
+pub fn load_entries() -> io::Result<Vec<PasswordEntry>> {
+    let path = get_store_path();
+    if !path.exists() {
+        return Ok(Vec::new());
+    }
+
+    let file = File::open(path)?;
+    // Handle empty file
+    if file.metadata()?.len() == 0 {
+        return Ok(Vec::new());
+    }
+
+    let reader = BufReader::new(file);
+    match serde_json::from_reader(reader) {
+        Ok(entries) => Ok(entries),
+        Err(_) => {
+            // If we can't deserialize, return empty (or handle migration in future)
+            // For now, let's assume if it fails it might be old format or corrupt.
+            // Returning empty might be dangerous (overwriting), so let's return error
+            Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "Could not parse storage file",
+            ))
+        }
+    }
+}
+
+pub fn save_entry(
+    service: &str,
+    username: &str,
+    password: &str,
+    master_password: &str,
+) -> io::Result<()> {
+    let mut entries = match load_entries() {
+        Ok(e) => e,
+        Err(e) if e.kind() == io::ErrorKind::InvalidData => {
+            return Err(e);
+        }
+        Err(e) => return Err(e),
+    };
+
+    if entries.iter().any(|e| e.service == service) {
+        return Err(io::Error::new(
+            io::ErrorKind::AlreadyExists,
+            format!("Service '{}' already exists", service),
+        ));
+    }
+
+    // Generate Salt
+    let mut salt = [0u8; 16];
+    rand::thread_rng().fill_bytes(&mut salt);
+
+    // Derive Key
+    let mut key = [0u8; 32]; // AES-256
+    pbkdf2::<Hmac<Sha256>>(master_password.as_bytes(), &salt, 100_000, &mut key)
+        .expect("PBKDF2 failed");
+    let key = Key::<Aes256Gcm>::from_slice(&key);
+    let cipher = Aes256Gcm::new(key);
+
+    // Generate Nonce
+    let nonce = Aes256Gcm::generate_nonce(&mut OsRng); // 96-bits; unique per message
+
+    // Encrypt
+    let ciphertext = cipher
+        .encrypt(&nonce, password.as_bytes())
+        .map_err(|e| io::Error::new(io::ErrorKind::Other, e.to_string()))?;
+
+    let entry = PasswordEntry {
+        service: service.to_string(),
+        username: username.to_string(),
+        encrypted_password: general_purpose::STANDARD.encode(ciphertext),
+        salt: general_purpose::STANDARD.encode(salt),
+        nonce: general_purpose::STANDARD.encode(nonce),
+    };
+
+    entries.push(entry);
+
+    let path = get_store_path();
+    let file = File::create(path)?;
+    let writer = BufWriter::new(file);
+    serde_json::to_writer_pretty(writer, &entries)?;
+
+    Ok(())
+}
