@@ -1,0 +1,2 @@
+description = "Make a git commit with the provided message"
+prompt = "Add changes to the staging area and create a git commit with the message: {{args}}"

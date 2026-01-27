@@ -1,0 +1,2 @@
+description = "Say hello back"
+prompt = "Say hello back to the user with a friendly message {{args}}"
