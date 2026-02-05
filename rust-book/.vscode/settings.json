@@ -8,5 +8,6 @@
         "4-understanding-ownership/playground_4_5/Cargo.toml",
         "5-using-structs-to-structure-related-data/playground/Cargo.toml",
         "6-enums-and-pattern-matching/playground/Cargo.toml",
+        "7-managing-growing-projects-with-packages-crates-and-modules/backyard/Cargo.toml"
     ]
 }
