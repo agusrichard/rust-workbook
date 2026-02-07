@@ -41,6 +41,12 @@ impl Timer {
         }
     }
 
+    pub fn tick(&mut self) {
+        if self.state == TimerState::Running {
+            self.remaining = self.remaining.saturating_sub(Duration::from_secs(1));
+        }
+    }
+
     pub fn reset(&mut self) {
         self.state = TimerState::Stopped;
         self.remaining = self.duration;
@@ -99,5 +105,42 @@ mod tests {
         timer.reset();
         assert_eq!(timer.state, TimerState::Stopped);
         assert_eq!(timer.remaining, timer.duration);
+    }
+
+    #[test]
+    fn test_timer_tick() {
+        let mut timer = Timer::new(Duration::from_secs(60));
+        timer.start();
+        
+        timer.tick();
+        assert_eq!(timer.remaining, Duration::from_secs(59));
+        
+        // Ensure it doesn't go below 0
+        let mut timer_short = Timer::new(Duration::from_secs(1));
+        timer_short.start();
+        timer_short.tick();
+        assert_eq!(timer_short.remaining, Duration::from_secs(0));
+        
+        timer_short.tick(); // Should stay at 0
+        assert_eq!(timer_short.remaining, Duration::from_secs(0));
+        
+        // Also check that it changes state to Stopped when it hits 0? 
+        // Or maybe just stops counting. 
+        // Usually a timer finishes. Let's assume for now it just stops counting.
+    }
+
+    #[test]
+    fn test_timer_tick_only_when_running() {
+        let mut timer = Timer::new(Duration::from_secs(60));
+        
+        // Stopped
+        timer.tick();
+        assert_eq!(timer.remaining, Duration::from_secs(60));
+        
+        // Paused
+        timer.start();
+        timer.pause();
+        timer.tick();
+        assert_eq!(timer.remaining, Duration::from_secs(60));
     }
 }
