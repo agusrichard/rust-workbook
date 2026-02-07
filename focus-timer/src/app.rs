@@ -68,6 +68,9 @@ impl App {
 
             if last_tick.elapsed() >= tick_rate {
                 self.timer.tick();
+                if self.timer.state == TimerState::Finished {
+                    self.trigger_notification();
+                }
                 last_tick = Instant::now();
             }
         }
