@@ -5,11 +5,11 @@
 - [x] Task: Create module structure (`app.rs`, `ui.rs`, `tui.rs`, `event.rs` if needed). 5ccfda6
 - [x] Task: Conductor - User Manual Verification 'Phase 1: Project Setup & Dependencies' (Protocol in workflow.md)
 
-## Phase 2: Core Domain Logic (Timer)
+## Phase 2: Core Domain Logic (Timer) [checkpoint: d328ec5]
 - [x] Task: Create `timer.rs` module and define `TimerState` enum (Stopped, Running, Paused). 59a3ab1
 - [x] Task: Implement `Timer` struct with `new`, `start`, `pause`, `resume`, `reset`. (TDD: Write tests first). 4ff7859
 - [x] Task: Implement `tick` method to update remaining time. (TDD: Write tests first). 29e3126
-- [~] Task: Conductor - User Manual Verification 'Phase 2: Core Domain Logic (Timer)' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Phase 2: Core Domain Logic (Timer)' (Protocol in workflow.md)
 
 ## Phase 3: TUI Infrastructure & Event Loop
 - [ ] Task: Implement `Tui` struct in `tui.rs` to handle terminal init/exit (enter/leave raw mode).
