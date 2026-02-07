@@ -59,6 +59,7 @@ pub fn render(app: &App, frame: &mut Frame) {
             [
                 Constraint::Length(3), // Work
                 Constraint::Length(3), // Break
+                Constraint::Length(4), // Settings
             ]
             .as_ref(),
         )
@@ -81,10 +82,20 @@ pub fn render(app: &App, frame: &mut Frame) {
         .style(break_style)
         .block(Block::default().borders(Borders::ALL).title("Break (min)"));
     frame.render_widget(break_input, input_chunks[1]);
+
+    // Status Block (Sound/Notifications)
+    let settings_text = format!(
+        "Sound: {}\nNotifications: {}",
+        if app.sound_enabled { "ON" } else { "OFF" },
+        if app.notifications_enabled { "ON" } else { "OFF" }
+    );
+    let settings_paragraph = Paragraph::new(settings_text)
+        .block(Block::default().borders(Borders::ALL).title("Settings"));
+    frame.render_widget(settings_paragraph, input_chunks[2]);
     
     // Help block
     let help_text = match app.input_mode {
-        InputMode::Normal => "Press 'q' to quit, 'Space' to pause/resume, 'w' to edit work, 'b' to edit break",
+        InputMode::Normal => "Press 'q' to quit, 'Space' to pause/resume, 'w' to edit work, 'b' to edit break, 's' toggle sound, 'n' toggle notifications",
         _ => "Press 'Enter' to save, 'Esc' to cancel",
     };
     let help_paragraph = Paragraph::new(help_text)
@@ -109,5 +120,25 @@ mod tests {
         terminal.draw(|f| {
             render(&app, f);
         }).unwrap();
+    }
+
+    #[test]
+    fn test_ui_render_shows_notifications_status() {
+        let backend = TestBackend::new(100, 20);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let mut app = App::new();
+        app.sound_enabled = true;
+        app.notifications_enabled = false;
+
+        terminal.draw(|f| {
+            render(&app, f);
+        }).unwrap();
+        
+        let buffer = terminal.backend().buffer();
+        // Check if status is in the buffer. 
+        // This is a bit brittle, but confirms we are rendering something.
+        let content = format!("{:?}", buffer);
+        assert!(content.contains("Sound: ON"));
+        assert!(content.contains("Notifications: OFF"));
     }
 }
