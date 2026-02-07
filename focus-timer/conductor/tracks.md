@@ -4,5 +4,5 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 ---
 
-- [~] **Track: Implement audible and system notifications**
+- [x] **Track: Implement audible and system notifications**
   *Link: [./tracks/notifications_20260208/](./tracks/notifications_20260208/)*
