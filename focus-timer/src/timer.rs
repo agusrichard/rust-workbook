@@ -5,6 +5,7 @@ pub enum TimerState {
     Stopped,
     Running,
     Paused,
+    Finished,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -24,7 +25,8 @@ impl Timer {
     }
 
     pub fn start(&mut self) {
-        if self.state == TimerState::Stopped {
+        if self.state == TimerState::Stopped || self.state == TimerState::Finished {
+            self.remaining = self.duration;
             self.state = TimerState::Running;
         }
     }
@@ -50,6 +52,9 @@ impl Timer {
     pub fn tick(&mut self) {
         if self.state == TimerState::Running {
             self.remaining = self.remaining.saturating_sub(Duration::from_secs(1));
+            if self.remaining.is_zero() {
+                self.state = TimerState::Finished;
+            }
         }
     }
 
@@ -87,6 +92,13 @@ mod tests {
         let mut timer = Timer::new(Duration::from_secs(60));
         timer.start();
         assert_eq!(timer.state, TimerState::Running);
+        
+        // Start from Finished should reset remaining
+        timer.remaining = Duration::from_secs(0);
+        timer.state = TimerState::Finished;
+        timer.start();
+        assert_eq!(timer.state, TimerState::Running);
+        assert_eq!(timer.remaining, timer.duration);
     }
 
     #[test]
@@ -129,19 +141,18 @@ mod tests {
         
         timer.tick();
         assert_eq!(timer.remaining, Duration::from_secs(59));
+        assert_eq!(timer.state, TimerState::Running);
         
-        // Ensure it doesn't go below 0
+        // Ensure it hits Finished when reaching 0
         let mut timer_short = Timer::new(Duration::from_secs(1));
         timer_short.start();
         timer_short.tick();
         assert_eq!(timer_short.remaining, Duration::from_secs(0));
+        assert_eq!(timer_short.state, TimerState::Finished);
         
-        timer_short.tick(); // Should stay at 0
+        timer_short.tick(); // Should stay at 0 and Finished
         assert_eq!(timer_short.remaining, Duration::from_secs(0));
-        
-        // Also check that it changes state to Stopped when it hits 0? 
-        // Or maybe just stops counting. 
-        // Usually a timer finishes. Let's assume for now it just stops counting.
+        assert_eq!(timer_short.state, TimerState::Finished);
     }
 
     #[test]
@@ -157,5 +168,12 @@ mod tests {
         timer.pause();
         timer.tick();
         assert_eq!(timer.remaining, Duration::from_secs(60));
+        
+        // Finished
+        timer.resume();
+        timer.remaining = Duration::from_secs(0);
+        timer.state = TimerState::Finished;
+        timer.tick();
+        assert_eq!(timer.remaining, Duration::from_secs(0));
     }
 }

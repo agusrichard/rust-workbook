@@ -129,7 +129,7 @@ impl App {
         match self.timer.state {
             TimerState::Running => self.timer.pause(),
             TimerState::Paused => self.timer.resume(),
-            TimerState::Stopped => self.timer.start(),
+            TimerState::Stopped | TimerState::Finished => self.timer.start(),
         }
     }
 }

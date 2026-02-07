@@ -42,7 +42,10 @@ pub fn render(app: &App, frame: &mut Frame) {
     let seconds = total_seconds % 60;
     let timer_text = format!("{:02}:{:02}", minutes, seconds);
 
-    let status_text = format!("Status: {:?}", app.timer.state);
+    let status_text = match app.timer.state {
+        crate::timer::TimerState::Finished => "Status: Done".to_string(),
+        _ => format!("Status: {:?}", app.timer.state),
+    };
     
     let combined_text = format!("{}\n\n{}", timer_text, status_text);
 
