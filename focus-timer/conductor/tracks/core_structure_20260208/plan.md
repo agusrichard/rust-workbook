@@ -2,7 +2,7 @@
 
 ## Phase 1: Project Setup & Dependencies
 - [x] Task: Update `Cargo.toml` with required dependencies (ratatui, crossterm, clap, chrono). 3cf4895
-- [ ] Task: Create module structure (`app.rs`, `ui.rs`, `tui.rs`, `event.rs` if needed).
+- [x] Task: Create module structure (`app.rs`, `ui.rs`, `tui.rs`, `event.rs` if needed). 5ccfda6
 - [ ] Task: Conductor - User Manual Verification 'Phase 1: Project Setup & Dependencies' (Protocol in workflow.md)
 
 ## Phase 2: Core Domain Logic (Timer)
