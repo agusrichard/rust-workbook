@@ -23,8 +23,18 @@ pub fn render(app: &App, frame: &mut Frame) {
         .borders(Borders::ALL)
         .title("Focus Timer");
 
-    let timer_text = format!("{:?}", app.timer.remaining);
-    let timer_paragraph = Paragraph::new(timer_text).block(title_block);
+    let total_seconds = app.timer.remaining.as_secs();
+    let minutes = total_seconds / 60;
+    let seconds = total_seconds % 60;
+    let timer_text = format!("{:02}:{:02}", minutes, seconds);
+
+    let status_text = format!("Status: {:?}", app.timer.state);
+    
+    let combined_text = format!("{}\n\n{}", timer_text, status_text);
+
+    let timer_paragraph = Paragraph::new(combined_text)
+        .block(title_block)
+        .alignment(ratatui::layout::Alignment::Center);
 
     frame.render_widget(timer_paragraph, chunks[0]);
     
