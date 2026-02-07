@@ -7,10 +7,10 @@
 - [x] Task: Conductor - User Manual Verification 'Phase 1: Notification State & UI' (Protocol in workflow.md)
 
 ## Phase 2: System Notifications (notify-rust)
-- [ ] Task: Add `notify-rust` dependency to `Cargo.toml`.
-- [ ] Task: Implement a helper function to trigger a system notification.
-- [ ] Task: Trigger the notification in the app loop when `timer.remaining == 0` and `notifications_enabled` is true.
-- [ ] Task: Conductor - User Manual Verification 'Phase 2: System Notifications' (Protocol in workflow.md)
+- [x] Task: Add `notify-rust` dependency to `Cargo.toml`. 3a1d317
+- [x] Task: Implement a helper function to trigger a system notification. 34f513b
+- [x] Task: Trigger the notification in the app loop when `timer.remaining == 0` and `notifications_enabled` is true. ffe6e0b
+- [~] Task: Conductor - User Manual Verification 'Phase 2: System Notifications' (Protocol in workflow.md)
 
 ## Phase 3: Audible Alerts (rodio)
 - [ ] Task: Verify `rodio` is ready in `Cargo.toml`.
