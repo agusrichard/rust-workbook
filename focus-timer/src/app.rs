@@ -4,11 +4,19 @@ use crossterm::event::{self, Event, KeyCode, KeyEventKind};
 use std::io;
 use std::time::{Duration, Instant};
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum InputMode {
+    Normal,
+    EditingWork,
+    EditingBreak,
+}
+
 pub struct App {
     pub timer: Timer,
     pub should_quit: bool,
     pub work_duration: Duration,
     pub break_duration: Duration,
+    pub input_mode: InputMode,
 }
 
 impl App {
@@ -20,6 +28,7 @@ impl App {
             should_quit: false,
             work_duration,
             break_duration,
+            input_mode: InputMode::Normal,
         }
     }
 
@@ -102,5 +111,14 @@ mod tests {
         let app = App::new();
         assert_eq!(app.work_duration, Duration::from_secs(25 * 60));
         assert_eq!(app.break_duration, Duration::from_secs(5 * 60));
+    }
+
+    #[test]
+    fn test_app_input_mode() {
+        let mut app = App::new();
+        assert_eq!(app.input_mode, InputMode::Normal);
+        
+        app.input_mode = InputMode::EditingWork;
+        assert_eq!(app.input_mode, InputMode::EditingWork);
     }
 }
