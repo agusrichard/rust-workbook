@@ -82,6 +82,8 @@ impl App {
                 KeyCode::Char(' ') => self.toggle_timer(),
                 KeyCode::Char('w') => self.input_mode = InputMode::EditingWork,
                 KeyCode::Char('b') => self.input_mode = InputMode::EditingBreak,
+                KeyCode::Char('s') => self.sound_enabled = !self.sound_enabled,
+                KeyCode::Char('n') => self.notifications_enabled = !self.notifications_enabled,
                 _ => {}
             },
             InputMode::EditingWork => match key.code {
@@ -238,6 +240,23 @@ mod tests {
     fn test_notification_defaults() {
         let app = App::new();
         assert!(app.sound_enabled);
+        assert!(app.notifications_enabled);
+    }
+
+    #[test]
+    fn test_toggle_sound_notifications() {
+        let mut app = App::new();
+        
+        app.handle_event(press_key(KeyCode::Char('s')));
+        assert!(!app.sound_enabled);
+        
+        app.handle_event(press_key(KeyCode::Char('s')));
+        assert!(app.sound_enabled);
+        
+        app.handle_event(press_key(KeyCode::Char('n')));
+        assert!(!app.notifications_enabled);
+        
+        app.handle_event(press_key(KeyCode::Char('n')));
         assert!(app.notifications_enabled);
     }
 }
