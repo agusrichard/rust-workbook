@@ -12,7 +12,7 @@
 - [x] Task: Conductor - User Manual Verification 'Phase 2: Core Domain Logic (Timer)' (Protocol in workflow.md)
 
 ## Phase 3: TUI Infrastructure & Event Loop
-- [ ] Task: Implement `Tui` struct in `tui.rs` to handle terminal init/exit (enter/leave raw mode).
+- [x] Task: Implement `Tui` struct in `tui.rs` to handle terminal init/exit (enter/leave raw mode). 58fa457
 - [ ] Task: Implement main event loop in `main.rs` (or `app.rs`) to handle key events (Exit, Pause/Resume) and Tick events.
 - [ ] Task: Connect `Timer` logic to the event loop.
 - [ ] Task: Conductor - User Manual Verification 'Phase 3: TUI Infrastructure & Event Loop' (Protocol in workflow.md)
