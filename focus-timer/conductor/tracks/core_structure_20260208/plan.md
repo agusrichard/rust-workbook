@@ -6,7 +6,7 @@
 - [x] Task: Conductor - User Manual Verification 'Phase 1: Project Setup & Dependencies' (Protocol in workflow.md)
 
 ## Phase 2: Core Domain Logic (Timer)
-- [ ] Task: Create `timer.rs` module and define `TimerState` enum (Stopped, Running, Paused).
+- [x] Task: Create `timer.rs` module and define `TimerState` enum (Stopped, Running, Paused). 59a3ab1
 - [ ] Task: Implement `Timer` struct with `new`, `start`, `pause`, `resume`, `reset`. (TDD: Write tests first).
 - [ ] Task: Implement `tick` method to update remaining time. (TDD: Write tests first).
 - [ ] Task: Conductor - User Manual Verification 'Phase 2: Core Domain Logic (Timer)' (Protocol in workflow.md)
