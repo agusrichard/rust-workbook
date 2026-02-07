@@ -7,5 +7,6 @@ edition = "2024"
 chrono = "0.4.43"
 clap = { version = "4.5.57", features = ["derive"] }
 crossterm = "0.29.0"
+notify-rust = "4.11.5"
 ratatui = "0.30.0"
 rodio = "0.21.1"
