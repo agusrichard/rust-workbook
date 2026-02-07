@@ -7,8 +7,8 @@
 - [x] Task: Implement input handling in `main.rs` loop (entering/exiting edit mode, typing digits). 1a20741
 - [x] Task: Conductor - User Manual Verification 'Phase 1: Input State & UI' (Protocol in workflow.md)
 
-## Phase 2: Validation & Logic Integration
+## Phase 2: Validation & Logic Integration [checkpoint: 48e4990]
 - [x] Task: Implement validation logic (ensure parsed string is > 0). 0a09fe7
 - [x] Task: Update `Timer::new` or add `set_duration` method to accept dynamic values. 3ea6256
 - [x] Task: Connect input values to the `Timer` instance (update timer when values change or on "Reset"). 1d4a68e
-- [~] Task: Conductor - User Manual Verification 'Phase 2: Validation & Logic Integration' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Phase 2: Validation & Logic Integration' (Protocol in workflow.md)
