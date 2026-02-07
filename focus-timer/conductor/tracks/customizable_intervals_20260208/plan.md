@@ -1,7 +1,7 @@
 # Implementation Plan - Customizable Intervals
 
 ## Phase 1: Input State & UI
-- [ ] Task: Add `work_duration` and `break_duration` fields to `App` state (defaulting to 25/5).
+- [x] Task: Add `work_duration` and `break_duration` fields to `App` state (defaulting to 25/5). 36970b9
 - [ ] Task: Create a new `InputMode` enum in `app.rs` (Normal, EditingWork, EditingBreak).
 - [ ] Task: Update `ui::render` to display input fields for Work and Break.
 - [ ] Task: Implement input handling in `main.rs` loop (entering/exiting edit mode, typing digits).
