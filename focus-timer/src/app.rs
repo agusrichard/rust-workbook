@@ -26,8 +26,8 @@ impl App {
         let mut last_tick = Instant::now();
 
         while !self.should_quit {
-            tui.terminal.draw(|_frame| {
-                // TODO: crate::ui::render(self, frame);
+            tui.terminal.draw(|frame| {
+                crate::ui::render(self, frame);
             })?;
 
             let timeout = tick_rate
