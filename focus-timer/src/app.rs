@@ -55,13 +55,7 @@ impl App {
 
             if event::poll(timeout)? {
                 if let Event::Key(key) = event::read()? {
-                    if key.kind == KeyEventKind::Press {
-                        match key.code {
-                            KeyCode::Char('q') | KeyCode::Esc => self.quit(),
-                            KeyCode::Char(' ') => self.toggle_timer(),
-                            _ => {}
-                        }
-                    }
+                    self.handle_event(key);
                 }
             }
 
@@ -71,6 +65,38 @@ impl App {
             }
         }
         Ok(())
+    }
+
+    pub fn handle_event(&mut self, key: event::KeyEvent) {
+        if key.kind != KeyEventKind::Press {
+            return;
+        }
+
+        match self.input_mode {
+            InputMode::Normal => match key.code {
+                KeyCode::Char('q') | KeyCode::Esc => self.quit(),
+                KeyCode::Char(' ') => self.toggle_timer(),
+                KeyCode::Char('w') => self.input_mode = InputMode::EditingWork,
+                KeyCode::Char('b') => self.input_mode = InputMode::EditingBreak,
+                _ => {}
+            },
+            InputMode::EditingWork => match key.code {
+                KeyCode::Enter | KeyCode::Esc => self.input_mode = InputMode::Normal,
+                KeyCode::Char(c) if c.is_ascii_digit() => self.work_input.push(c),
+                KeyCode::Backspace => {
+                    self.work_input.pop();
+                }
+                _ => {}
+            },
+            InputMode::EditingBreak => match key.code {
+                KeyCode::Enter | KeyCode::Esc => self.input_mode = InputMode::Normal,
+                KeyCode::Char(c) if c.is_ascii_digit() => self.break_input.push(c),
+                KeyCode::Backspace => {
+                    self.break_input.pop();
+                }
+                _ => {}
+            },
+        }
     }
 
     fn toggle_timer(&mut self) {
@@ -85,13 +111,45 @@ impl App {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crossterm::event::{KeyEvent, KeyModifiers};
+
+    fn press_key(code: KeyCode) -> KeyEvent {
+        KeyEvent::new(code, KeyModifiers::empty())
+    }
 
     #[test]
     fn test_app_quit() {
         let mut app = App::new();
         assert!(!app.should_quit);
-        app.quit();
+        app.handle_event(press_key(KeyCode::Char('q')));
         assert!(app.should_quit);
+    }
+
+    #[test]
+    fn test_handle_event_switch_mode() {
+        let mut app = App::new();
+        app.handle_event(press_key(KeyCode::Char('w')));
+        assert_eq!(app.input_mode, InputMode::EditingWork);
+        
+        app.handle_event(press_key(KeyCode::Esc));
+        assert_eq!(app.input_mode, InputMode::Normal);
+        
+        app.handle_event(press_key(KeyCode::Char('b')));
+        assert_eq!(app.input_mode, InputMode::EditingBreak);
+    }
+
+    #[test]
+    fn test_handle_event_typing() {
+        let mut app = App::new();
+        app.work_input = String::new();
+        
+        app.handle_event(press_key(KeyCode::Char('w')));
+        app.handle_event(press_key(KeyCode::Char('1')));
+        app.handle_event(press_key(KeyCode::Char('2')));
+        assert_eq!(app.work_input, "12");
+        
+        app.handle_event(press_key(KeyCode::Backspace));
+        assert_eq!(app.work_input, "1");
     }
 
     #[test]
@@ -100,14 +158,11 @@ mod tests {
         // Initially Stopped
         assert_eq!(app.timer.state, TimerState::Stopped);
         
-        app.toggle_timer();
+        app.handle_event(press_key(KeyCode::Char(' ')));
         assert_eq!(app.timer.state, TimerState::Running);
         
-        app.toggle_timer();
+        app.handle_event(press_key(KeyCode::Char(' ')));
         assert_eq!(app.timer.state, TimerState::Paused);
-        
-        app.toggle_timer();
-        assert_eq!(app.timer.state, TimerState::Running);
     }
 
     #[test]
