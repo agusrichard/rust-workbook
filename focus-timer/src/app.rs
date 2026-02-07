@@ -85,6 +85,7 @@ impl App {
                     if let Ok(mins) = self.work_input.parse::<u64>() {
                         if mins > 0 {
                             self.work_duration = Duration::from_secs(mins * 60);
+                            self.timer.set_duration(self.work_duration);
                         }
                     }
                     self.input_mode = InputMode::Normal;
@@ -101,6 +102,9 @@ impl App {
                     if let Ok(mins) = self.break_input.parse::<u64>() {
                         if mins > 0 {
                             self.break_duration = Duration::from_secs(mins * 60);
+                            // We don't automatically switch to break mode timer here, 
+                            // but if we were in break mode, it would be useful.
+                            // For now let's just update work_duration since the timer starts as work.
                         }
                     }
                     self.input_mode = InputMode::Normal;
@@ -189,6 +193,7 @@ mod tests {
         app.handle_event(press_key(KeyCode::Enter));
         
         assert_eq!(app.work_duration, Duration::from_secs(10 * 60));
+        assert_eq!(app.timer.duration, Duration::from_secs(10 * 60)); // Should update timer too
         assert_eq!(app.input_mode, InputMode::Normal);
     }
 
