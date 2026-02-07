@@ -1,7 +1,7 @@
 # Implementation Plan - Notifications
 
 ## Phase 1: Notification State & UI
-- [ ] Task: Add `sound_enabled` and `notifications_enabled` fields to `App` struct.
+- [x] Task: Add `sound_enabled` and `notifications_enabled` fields to `App` struct. ac9dc4d
 - [ ] Task: Update `ui::render` to show the status of sound and notifications.
 - [ ] Task: Implement keyboard handlers in `app.rs` ('s' for sound, 'n' for notifications) to toggle state.
 - [ ] Task: Conductor - User Manual Verification 'Phase 1: Notification State & UI' (Protocol in workflow.md)
