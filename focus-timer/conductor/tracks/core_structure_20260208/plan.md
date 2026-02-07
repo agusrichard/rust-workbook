@@ -19,6 +19,6 @@
 
 ## Phase 4: UI Rendering
 - [x] Task: Implement `ui::render` function to draw the interface using `Ratatui`. e3e6b11
-- [ ] Task: Design and render a Block showing the current Timer value (MM:SS).
-- [ ] Task: Render status indicators (Work/Break mode, Running/Paused state).
+- [x] Task: Design and render a Block showing the current Timer value (MM:SS). a01a790
+- [x] Task: Render status indicators (Work/Break mode, Running/Paused state). a01a790
 - [ ] Task: Conductor - User Manual Verification 'Phase 4: UI Rendering' (Protocol in workflow.md)
