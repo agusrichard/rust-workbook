@@ -7,7 +7,7 @@
 
 ## Phase 2: Core Domain Logic (Timer)
 - [x] Task: Create `timer.rs` module and define `TimerState` enum (Stopped, Running, Paused). 59a3ab1
-- [ ] Task: Implement `Timer` struct with `new`, `start`, `pause`, `resume`, `reset`. (TDD: Write tests first).
+- [x] Task: Implement `Timer` struct with `new`, `start`, `pause`, `resume`, `reset`. (TDD: Write tests first). 4ff7859
 - [ ] Task: Implement `tick` method to update remaining time. (TDD: Write tests first).
 - [ ] Task: Conductor - User Manual Verification 'Phase 2: Core Domain Logic (Timer)' (Protocol in workflow.md)
 
