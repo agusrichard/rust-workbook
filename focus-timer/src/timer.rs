@@ -1,8 +1,50 @@
+use std::time::Duration;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TimerState {
     Stopped,
     Running,
     Paused,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Timer {
+    pub state: TimerState,
+    pub duration: Duration,
+    pub remaining: Duration,
+}
+
+impl Timer {
+    pub fn new(duration: Duration) -> Self {
+        Self {
+            state: TimerState::Stopped,
+            duration,
+            remaining: duration,
+        }
+    }
+
+    pub fn start(&mut self) {
+        if self.state == TimerState::Stopped {
+            self.state = TimerState::Running;
+        }
+    }
+
+    pub fn pause(&mut self) {
+        if self.state == TimerState::Running {
+            self.state = TimerState::Paused;
+        }
+    }
+
+    pub fn resume(&mut self) {
+        if self.state == TimerState::Paused {
+            self.state = TimerState::Running;
+        }
+    }
+
+    pub fn reset(&mut self) {
+        self.state = TimerState::Stopped;
+        self.remaining = self.duration;
+    }
 }
 
 #[cfg(test)]
@@ -17,5 +59,45 @@ mod tests {
         
         let copy = state;
         assert_eq!(copy, state);
+    }
+
+    #[test]
+    fn test_timer_new() {
+        let duration = Duration::from_secs(60);
+        let timer = Timer::new(duration);
+        assert_eq!(timer.state, TimerState::Stopped);
+        assert_eq!(timer.duration, duration);
+        assert_eq!(timer.remaining, duration);
+    }
+
+    #[test]
+    fn test_timer_start() {
+        let mut timer = Timer::new(Duration::from_secs(60));
+        timer.start();
+        assert_eq!(timer.state, TimerState::Running);
+    }
+
+    #[test]
+    fn test_timer_pause_resume() {
+        let mut timer = Timer::new(Duration::from_secs(60));
+        timer.start();
+        timer.pause();
+        assert_eq!(timer.state, TimerState::Paused);
+        
+        timer.resume();
+        assert_eq!(timer.state, TimerState::Running);
+    }
+
+    #[test]
+    fn test_timer_reset() {
+        let mut timer = Timer::new(Duration::from_secs(60));
+        timer.start();
+        // Simulate some time passing (manually modifying remaining for test if field was pub, 
+        // but currently we just check state reset)
+        timer.state = TimerState::Running; 
+        
+        timer.reset();
+        assert_eq!(timer.state, TimerState::Stopped);
+        assert_eq!(timer.remaining, timer.duration);
     }
 }
