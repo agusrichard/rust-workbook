@@ -7,13 +7,19 @@ use std::time::{Duration, Instant};
 pub struct App {
     pub timer: Timer,
     pub should_quit: bool,
+    pub work_duration: Duration,
+    pub break_duration: Duration,
 }
 
 impl App {
     pub fn new() -> Self {
+        let work_duration = Duration::from_secs(25 * 60);
+        let break_duration = Duration::from_secs(5 * 60);
         Self {
-            timer: Timer::new(Duration::from_secs(25 * 60)),
+            timer: Timer::new(work_duration),
             should_quit: false,
+            work_duration,
+            break_duration,
         }
     }
 
@@ -89,5 +95,12 @@ mod tests {
         
         app.toggle_timer();
         assert_eq!(app.timer.state, TimerState::Running);
+    }
+
+    #[test]
+    fn test_app_default_durations() {
+        let app = App::new();
+        assert_eq!(app.work_duration, Duration::from_secs(25 * 60));
+        assert_eq!(app.break_duration, Duration::from_secs(5 * 60));
     }
 }
