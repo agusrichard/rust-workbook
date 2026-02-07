@@ -15,7 +15,7 @@
 - [x] Task: Implement `Tui` struct in `tui.rs` to handle terminal init/exit (enter/leave raw mode). 58fa457
 - [x] Task: Implement main event loop in `main.rs` (or `app.rs`) to handle key events (Exit, Pause/Resume) and Tick events. a36280e
 - [x] Task: Connect `Timer` logic to the event loop. a36280e
-- [ ] Task: Conductor - User Manual Verification 'Phase 3: TUI Infrastructure & Event Loop' (Protocol in workflow.md)
+- [~] Task: Conductor - User Manual Verification 'Phase 3: TUI Infrastructure & Event Loop' (Protocol in workflow.md)
 
 ## Phase 4: UI Rendering
 - [ ] Task: Implement `ui::render` function to draw the interface using `Ratatui`.
