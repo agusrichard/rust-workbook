@@ -17,6 +17,8 @@ pub struct App {
     pub work_duration: Duration,
     pub break_duration: Duration,
     pub input_mode: InputMode,
+    pub work_input: String,
+    pub break_input: String,
 }
 
 impl App {
@@ -29,6 +31,8 @@ impl App {
             work_duration,
             break_duration,
             input_mode: InputMode::Normal,
+            work_input: (work_duration.as_secs() / 60).to_string(),
+            break_input: (break_duration.as_secs() / 60).to_string(),
         }
     }
 

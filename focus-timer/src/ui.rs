@@ -1,13 +1,14 @@
 use ratatui::{
     layout::{Constraint, Direction, Layout},
+    style::{Color, Style},
     widgets::{Block, Borders, Paragraph},
     Frame,
 };
 
-use crate::app::App;
+use crate::app::{App, InputMode};
 
 pub fn render(app: &App, frame: &mut Frame) {
-    // Basic layout
+    // Basic layout: Main (80%) and Help (20%)
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints(
@@ -19,6 +20,19 @@ pub fn render(app: &App, frame: &mut Frame) {
         )
         .split(frame.area());
 
+    // Sub-layout for the main area: Timer (70%) and Inputs (30%)
+    let main_chunks = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints(
+            [
+                Constraint::Percentage(70),
+                Constraint::Percentage(30),
+            ]
+            .as_ref(),
+        )
+        .split(chunks[0]);
+
+    // Timer Block
     let title_block = Block::default()
         .borders(Borders::ALL)
         .title("Focus Timer");
@@ -36,10 +50,43 @@ pub fn render(app: &App, frame: &mut Frame) {
         .block(title_block)
         .alignment(ratatui::layout::Alignment::Center);
 
-    frame.render_widget(timer_paragraph, chunks[0]);
+    frame.render_widget(timer_paragraph, main_chunks[0]);
+
+    // Inputs Block
+    let input_chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints(
+            [
+                Constraint::Length(3), // Work
+                Constraint::Length(3), // Break
+            ]
+            .as_ref(),
+        )
+        .split(main_chunks[1]);
+
+    let work_style = match app.input_mode {
+        InputMode::EditingWork => Style::default().fg(Color::Yellow),
+        _ => Style::default(),
+    };
+    let work_input = Paragraph::new(app.work_input.as_str())
+        .style(work_style)
+        .block(Block::default().borders(Borders::ALL).title("Work (min)"));
+    frame.render_widget(work_input, input_chunks[0]);
+
+    let break_style = match app.input_mode {
+        InputMode::EditingBreak => Style::default().fg(Color::Yellow),
+        _ => Style::default(),
+    };
+    let break_input = Paragraph::new(app.break_input.as_str())
+        .style(break_style)
+        .block(Block::default().borders(Borders::ALL).title("Break (min)"));
+    frame.render_widget(break_input, input_chunks[1]);
     
     // Help block
-    let help_text = "Press 'q' to quit, 'Space' to pause/resume";
+    let help_text = match app.input_mode {
+        InputMode::Normal => "Press 'q' to quit, 'Space' to pause/resume, 'w' to edit work, 'b' to edit break",
+        _ => "Press 'Enter' to save, 'Esc' to cancel",
+    };
     let help_paragraph = Paragraph::new(help_text)
         .block(Block::default().borders(Borders::ALL).title("Controls"));
     
