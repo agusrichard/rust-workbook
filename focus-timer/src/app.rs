@@ -81,7 +81,15 @@ impl App {
                 _ => {}
             },
             InputMode::EditingWork => match key.code {
-                KeyCode::Enter | KeyCode::Esc => self.input_mode = InputMode::Normal,
+                KeyCode::Enter => {
+                    if let Ok(mins) = self.work_input.parse::<u64>() {
+                        if mins > 0 {
+                            self.work_duration = Duration::from_secs(mins * 60);
+                        }
+                    }
+                    self.input_mode = InputMode::Normal;
+                }
+                KeyCode::Esc => self.input_mode = InputMode::Normal,
                 KeyCode::Char(c) if c.is_ascii_digit() => self.work_input.push(c),
                 KeyCode::Backspace => {
                     self.work_input.pop();
@@ -89,7 +97,15 @@ impl App {
                 _ => {}
             },
             InputMode::EditingBreak => match key.code {
-                KeyCode::Enter | KeyCode::Esc => self.input_mode = InputMode::Normal,
+                KeyCode::Enter => {
+                    if let Ok(mins) = self.break_input.parse::<u64>() {
+                        if mins > 0 {
+                            self.break_duration = Duration::from_secs(mins * 60);
+                        }
+                    }
+                    self.input_mode = InputMode::Normal;
+                }
+                KeyCode::Esc => self.input_mode = InputMode::Normal,
                 KeyCode::Char(c) if c.is_ascii_digit() => self.break_input.push(c),
                 KeyCode::Backspace => {
                     self.break_input.pop();
@@ -163,6 +179,34 @@ mod tests {
         
         app.handle_event(press_key(KeyCode::Char(' ')));
         assert_eq!(app.timer.state, TimerState::Paused);
+    }
+
+    #[test]
+    fn test_save_work_duration_valid() {
+        let mut app = App::new();
+        app.work_input = "10".to_string();
+        app.input_mode = InputMode::EditingWork;
+        app.handle_event(press_key(KeyCode::Enter));
+        
+        assert_eq!(app.work_duration, Duration::from_secs(10 * 60));
+        assert_eq!(app.input_mode, InputMode::Normal);
+    }
+
+    #[test]
+    fn test_save_work_duration_invalid() {
+        let mut app = App::new();
+        app.work_input = "0".to_string(); // Invalid: must be > 0
+        app.input_mode = InputMode::EditingWork;
+        app.handle_event(press_key(KeyCode::Enter));
+        
+        // Should not update if invalid
+        assert_eq!(app.work_duration, Duration::from_secs(25 * 60));
+        assert_eq!(app.input_mode, InputMode::Normal);
+        
+        app.work_input = "".to_string();
+        app.input_mode = InputMode::EditingWork;
+        app.handle_event(press_key(KeyCode::Enter));
+        assert_eq!(app.work_duration, Duration::from_secs(25 * 60));
     }
 
     #[test]
