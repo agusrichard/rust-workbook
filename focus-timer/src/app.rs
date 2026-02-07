@@ -1,6 +1,7 @@
 use crate::timer::{Timer, TimerState};
 use crate::tui::Tui;
 use crossterm::event::{self, Event, KeyCode, KeyEventKind};
+use notify_rust::Notification;
 use std::io;
 use std::time::{Duration, Instant};
 
@@ -21,6 +22,7 @@ pub struct App {
     pub break_input: String,
     pub sound_enabled: bool,
     pub notifications_enabled: bool,
+    pub notification_triggered: bool,
 }
 
 impl App {
@@ -37,6 +39,7 @@ impl App {
             break_input: (break_duration.as_secs() / 60).to_string(),
             sound_enabled: true,
             notifications_enabled: true,
+            notification_triggered: false,
         }
     }
 
@@ -69,6 +72,16 @@ impl App {
             }
         }
         Ok(())
+    }
+
+    pub fn trigger_notification(&mut self) {
+        if self.notifications_enabled && !self.notification_triggered {
+            let _ = Notification::new()
+                .summary("Focus Timer")
+                .body("Time is up!")
+                .show();
+            self.notification_triggered = true;
+        }
     }
 
     pub fn handle_event(&mut self, key: event::KeyEvent) {
@@ -129,7 +142,10 @@ impl App {
         match self.timer.state {
             TimerState::Running => self.timer.pause(),
             TimerState::Paused => self.timer.resume(),
-            TimerState::Stopped | TimerState::Finished => self.timer.start(),
+            TimerState::Stopped | TimerState::Finished => {
+                self.notification_triggered = false;
+                self.timer.start();
+            }
         }
     }
 }
@@ -241,6 +257,31 @@ mod tests {
         let app = App::new();
         assert!(app.sound_enabled);
         assert!(app.notifications_enabled);
+        assert!(!app.notification_triggered);
+    }
+
+    #[test]
+    fn test_trigger_notification_flag() {
+        let mut app = App::new();
+        app.notifications_enabled = true;
+        app.notification_triggered = false;
+        
+        app.trigger_notification();
+        assert!(app.notification_triggered);
+        
+        // Should stay true if called again
+        app.trigger_notification();
+        assert!(app.notification_triggered);
+    }
+
+    #[test]
+    fn test_trigger_notification_disabled() {
+        let mut app = App::new();
+        app.notifications_enabled = false;
+        app.notification_triggered = false;
+        
+        app.trigger_notification();
+        assert!(!app.notification_triggered);
     }
 
     #[test]
