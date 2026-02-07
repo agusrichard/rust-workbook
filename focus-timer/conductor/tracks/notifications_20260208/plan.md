@@ -3,7 +3,7 @@
 ## Phase 1: Notification State & UI
 - [x] Task: Add `sound_enabled` and `notifications_enabled` fields to `App` struct. ac9dc4d
 - [x] Task: Update `ui::render` to show the status of sound and notifications. 3f162c0
-- [ ] Task: Implement keyboard handlers in `app.rs` ('s' for sound, 'n' for notifications) to toggle state.
+- [x] Task: Implement keyboard handlers in `app.rs` ('s' for sound, 'n' for notifications) to toggle state. 8c03c12
 - [ ] Task: Conductor - User Manual Verification 'Phase 1: Notification State & UI' (Protocol in workflow.md)
 
 ## Phase 2: System Notifications (notify-rust)
