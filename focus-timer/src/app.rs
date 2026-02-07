@@ -19,6 +19,8 @@ pub struct App {
     pub input_mode: InputMode,
     pub work_input: String,
     pub break_input: String,
+    pub sound_enabled: bool,
+    pub notifications_enabled: bool,
 }
 
 impl App {
@@ -33,6 +35,8 @@ impl App {
             input_mode: InputMode::Normal,
             work_input: (work_duration.as_secs() / 60).to_string(),
             break_input: (break_duration.as_secs() / 60).to_string(),
+            sound_enabled: true,
+            notifications_enabled: true,
         }
     }
 
@@ -228,5 +232,12 @@ mod tests {
         
         app.input_mode = InputMode::EditingWork;
         assert_eq!(app.input_mode, InputMode::EditingWork);
+    }
+
+    #[test]
+    fn test_notification_defaults() {
+        let app = App::new();
+        assert!(app.sound_enabled);
+        assert!(app.notifications_enabled);
     }
 }
