@@ -41,6 +41,12 @@ impl Timer {
         }
     }
 
+    pub fn set_duration(&mut self, duration: Duration) {
+        self.duration = duration;
+        self.remaining = duration;
+        self.state = TimerState::Stopped;
+    }
+
     pub fn tick(&mut self) {
         if self.state == TimerState::Running {
             self.remaining = self.remaining.saturating_sub(Duration::from_secs(1));
@@ -105,6 +111,15 @@ mod tests {
         timer.reset();
         assert_eq!(timer.state, TimerState::Stopped);
         assert_eq!(timer.remaining, timer.duration);
+    }
+
+    #[test]
+    fn test_timer_set_duration() {
+        let mut timer = Timer::new(Duration::from_secs(60));
+        timer.set_duration(Duration::from_secs(120));
+        assert_eq!(timer.duration, Duration::from_secs(120));
+        assert_eq!(timer.remaining, Duration::from_secs(120));
+        assert_eq!(timer.state, TimerState::Stopped);
     }
 
     #[test]
