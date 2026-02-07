@@ -2,6 +2,7 @@ use crate::timer::{Timer, TimerState};
 use crate::tui::Tui;
 use crossterm::event::{self, Event, KeyCode, KeyEventKind};
 use notify_rust::Notification;
+use rodio::Source;
 use std::io;
 use std::time::{Duration, Instant};
 
@@ -78,13 +79,32 @@ impl App {
     }
 
     pub fn trigger_notification(&mut self) {
-        if self.notifications_enabled && !self.notification_triggered {
-            let _ = Notification::new()
-                .summary("Focus Timer")
-                .body("Time is up!")
-                .show();
+        if !self.notification_triggered {
+            if self.notifications_enabled {
+                let _ = Notification::new()
+                    .summary("Focus Timer")
+                    .body("Time is up!")
+                    .show();
+            }
+            if self.sound_enabled {
+                self.play_alert();
+            }
             self.notification_triggered = true;
         }
+    }
+
+    fn play_alert(&self) {
+        std::thread::spawn(|| {
+            // rodio 0.21.1 uses OutputStreamBuilder for opening the default stream
+            if let Ok(stream) = rodio::OutputStreamBuilder::open_default_stream() {
+                let sink = rodio::Sink::connect_new(stream.mixer());
+                let source = rodio::source::SineWave::new(440.0)
+                    .take_duration(Duration::from_millis(500))
+                    .amplify(0.2);
+                sink.append(source);
+                sink.sleep_until_end();
+            }
+        });
     }
 
     pub fn handle_event(&mut self, key: event::KeyEvent) {
@@ -281,10 +301,12 @@ mod tests {
     fn test_trigger_notification_disabled() {
         let mut app = App::new();
         app.notifications_enabled = false;
+        app.sound_enabled = false;
         app.notification_triggered = false;
         
         app.trigger_notification();
-        assert!(!app.notification_triggered);
+        // It should still set triggered to true to prevent checking every tick if timer is Finished
+        assert!(app.notification_triggered);
     }
 
     #[test]
