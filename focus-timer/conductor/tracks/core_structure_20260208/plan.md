@@ -1,9 +1,9 @@
 # Implementation Plan - Core Application Structure
 
-## Phase 1: Project Setup & Dependencies
+## Phase 1: Project Setup & Dependencies [checkpoint: 4e9d462]
 - [x] Task: Update `Cargo.toml` with required dependencies (ratatui, crossterm, clap, chrono). 3cf4895
 - [x] Task: Create module structure (`app.rs`, `ui.rs`, `tui.rs`, `event.rs` if needed). 5ccfda6
-- [ ] Task: Conductor - User Manual Verification 'Phase 1: Project Setup & Dependencies' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Phase 1: Project Setup & Dependencies' (Protocol in workflow.md)
 
 ## Phase 2: Core Domain Logic (Timer)
 - [ ] Task: Create `timer.rs` module and define `TimerState` enum (Stopped, Running, Paused).
