@@ -10,6 +10,7 @@
 - **Argument Parsing:** Clap (Industry standard for CLI arguments)
 - **Date & Time:** Chrono (Comprehensive date and time management)
 - **Audio/Notification:** Rodio (Audio playback for alerts)
+- **System Notifications:** notify-rust (Desktop notification service)
 
 ## Development Tools
 - **Package Manager:** Cargo
