@@ -1,8 +1,0 @@
-{
-  "track_id": "core_structure_20260208",
-  "type": "feature",
-  "status": "new",
-  "created_at": "2026-02-08T00:00:00Z",
-  "updated_at": "2026-02-08T00:00:00Z",
-  "description": "Build the core application structure: Set up the TUI loop using Ratatui, implement the basic timer logic with customizable intervals (work/break), and handle user input for start/pause/resume."
-}

@@ -5,7 +5,7 @@
 - [x] Task: Create a new `InputMode` enum in `app.rs` (Normal, EditingWork, EditingBreak). f6259f7
 - [x] Task: Update `ui::render` to display input fields for Work and Break. 7d74bd9
 - [x] Task: Implement input handling in `main.rs` loop (entering/exiting edit mode, typing digits). 1a20741
-- [ ] Task: Conductor - User Manual Verification 'Phase 1: Input State & UI' (Protocol in workflow.md)
+- [~] Task: Conductor - User Manual Verification 'Phase 1: Input State & UI' (Protocol in workflow.md)
 
 ## Phase 2: Validation & Logic Integration
 - [ ] Task: Implement validation logic (ensure parsed string is > 0).
