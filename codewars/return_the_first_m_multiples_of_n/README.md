@@ -1,0 +1,3 @@
+# Return the first M multiples of N
+
+Link to challenge: ...
