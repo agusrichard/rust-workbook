@@ -11,7 +11,7 @@ fn multiples(m: i32, n: f64) -> Vec<f64> {
         v.push((i as f64) * n);
     }
 
-    return v.clone();
+    v
 }
 
 fn oneline_multiples(m: i32, n: f64) -> Vec<f64> {
@@ -20,5 +20,19 @@ fn oneline_multiples(m: i32, n: f64) -> Vec<f64> {
 
 #[cfg(test)]
 mod tests {
-    use super::multiples;
+    use super::{multiples, oneline_multiples};
+
+    #[test]
+    fn test_multiples() {
+        assert_eq!(multiples(3, 5.0), vec![5.0, 10.0, 15.0]);
+        assert_eq!(multiples(1, 2.5), vec![2.5]);
+        assert_eq!(multiples(0, 5.0), vec![]);
+    }
+
+    #[test]
+    fn test_oneline_multiples() {
+        assert_eq!(oneline_multiples(3, 5.0), vec![5.0, 10.0, 15.0]);
+        assert_eq!(oneline_multiples(1, 2.5), vec![2.5]);
+        assert_eq!(oneline_multiples(0, 5.0), vec![]);
+    }
 }
