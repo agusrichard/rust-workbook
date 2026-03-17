@@ -4,5 +4,6 @@ A collection of Rust solutions to Codewars challenges.
 
 ## Solutions
 
-- [Return the first M multiples of N](./return_the_first_m_multiples_of_n)
-- [Disemvowel Trolls](./disemvowel_trolls)
+1. [Return the first M multiples of N](./001_return_the_first_m_multiples_of_n)
+2. [Disemvowel Trolls](./002_disemvowel_trolls)
+3. [Minimum Perimeter of a Rectangle](./003_minimum_perimeter_of_a_rectangle)
