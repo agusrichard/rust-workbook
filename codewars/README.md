@@ -8,3 +8,4 @@ A collection of Rust solutions to Codewars challenges.
 2. [Disemvowel Trolls](./002_disemvowel_trolls)
 3. [Minimum Perimeter of a Rectangle](./003_minimum_perimeter_of_a_rectangle)
 4. [Word values](./004_word_values)
+5. [Get the mean of an array](005_get_the_mean_of_an_array)

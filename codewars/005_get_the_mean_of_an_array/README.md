@@ -1,0 +1,3 @@
+# Get the mean of an array
+
+Link to challenge: ...
