@@ -1,0 +1,6 @@
+[package]
+name = "sum_of_powers_of_2"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
