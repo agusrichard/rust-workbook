@@ -10,3 +10,4 @@ A collection of Rust solutions to Codewars challenges.
 4. [Word values](./004_word_values)
 5. [Get the mean of an array](005_get_the_mean_of_an_array)
 6. [Sum of powers of 2](./006_sum_of_powers_of_2)
+7. [Maximum Product](./007_maximum_product)
