@@ -12,3 +12,4 @@ A collection of Rust solutions to Codewars challenges.
 6. [Sum of powers of 2](./006_sum_of_powers_of_2)
 7. [Maximum Product](./007_maximum_product)
 8. [Balanced Number](./008_balanced_number)
+9. [Valid Parentheses](./009_valid_parentheses)

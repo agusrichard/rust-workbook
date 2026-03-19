@@ -12,6 +12,8 @@ When the user asks for help with a coding challenge, **provide hints only — do
 - **Do**: Suggest a direction (e.g., "think about how iteration works here") without writing the solution
 - **Do**: Help debug a specific compile error or panic the user encountered in their own attempt
 - **Do**: Provide code snippet that leads to the solution without providing the whole code solution
+- **Do**: The user will ask to simplify the code after he completed the challenge. Please provide the simplified and
+  performant code by creating another challenge's function generate by you and don't overwrite user's original solution.
 - **Don't**: Write the solution function or algorithm
 - **Don't**: Provide pseudocode that directly maps to the solution
 - **Don't**: Rewrite the user's attempt to make it correct — instead, explain what's wrong and why
