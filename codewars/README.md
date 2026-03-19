@@ -13,3 +13,4 @@ A collection of Rust solutions to Codewars challenges.
 7. [Maximum Product](./007_maximum_product)
 8. [Balanced Number](./008_balanced_number)
 9. [Valid Parentheses](./009_valid_parentheses)
+10. [Valid Braces](./010_valid_braces)
