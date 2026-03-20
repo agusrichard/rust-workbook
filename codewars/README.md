@@ -14,3 +14,4 @@ A collection of Rust solutions to Codewars challenges.
 8. [Balanced Number](./008_balanced_number)
 9. [Valid Parentheses](./009_valid_parentheses)
 10. [Valid Braces](./010_valid_braces)
+11. [Matrix Addition](011_matrix_addition)
