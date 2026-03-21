@@ -17,3 +17,4 @@ A collection of Rust solutions to Codewars challenges.
 11. [Matrix Addition](011_matrix_addition)
 12. [Rot13](012_rot13)
 13. [Disease Spread](./013_disease_spread)
+14. [Multiples of 3 or 5](./014_multiples_of_3_or_5)
