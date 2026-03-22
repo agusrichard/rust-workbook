@@ -19,3 +19,4 @@ A collection of Rust solutions to Codewars challenges.
 13. [Disease Spread](./013_disease_spread)
 14. [Multiples of 3 or 5](./014_multiples_of_3_or_5)
 15. [PI approximation](./015_pi_approximation)
+16. [Ratio of Bouncy Numbers](./016_ratio_of_bouncy_numbers)
