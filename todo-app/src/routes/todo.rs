@@ -1,6 +1,7 @@
 use axum::extract::Path;
 use axum::response::IntoResponse;
 use axum::{Json, Router, routing::{get, post, put, delete}};
+use crate::app_state::AppState;
 use crate::response::MessageResponse;
 
 async fn create_todo() -> impl IntoResponse {
@@ -35,7 +36,7 @@ async fn delete_todo(Path(todo_id): Path<u64>) -> impl IntoResponse {
     })
 }
 
-pub fn router() -> Router {
+pub fn router() -> Router<AppState> {
     Router::new()
         .route("/", get(get_todos))
         .route("/", post(create_todo))
