@@ -1,39 +1,36 @@
-use axum::extract::Path;
+use axum::extract::{Path, State};
 use axum::response::IntoResponse;
 use axum::{Json, Router, routing::{get, post, put, delete}};
+use axum::http::StatusCode;
 use crate::app_state::AppState;
-use crate::response::MessageResponse;
+use crate::errors::AppError;
+use crate::models::todo::{CreateTodo, UpdateTodo};
 
-async fn create_todo() -> impl IntoResponse {
-    Json(MessageResponse {
-        message: "Create Todo".to_string()
-    })
+async fn create_todo(State(state): State<AppState>, Json(body): Json<CreateTodo>) -> Result<impl IntoResponse, AppError> {
+    let todo = state.todo_repo.create(body)?;
+    Ok((StatusCode::CREATED, Json(todo)))
 }
 
-async fn get_todos() -> impl IntoResponse {
-    Json(MessageResponse {
-        message: "Get Todos".to_string()
-    })
+async fn get_todos(State(state): State<AppState>) -> Result<impl IntoResponse, AppError> {
+    let todos = state.todo_repo.get_all()?;
+    Ok(Json(todos))
 }
 
-async fn get_todo(Path(todo_id): Path<u64>) -> impl IntoResponse {
-    Json(MessageResponse {
-        message: format!("Get Todo {}", todo_id)
-    })
-}
-
-
-async fn update_todo(Path(todo_id): Path<u64>) -> impl IntoResponse {
-    Json(MessageResponse {
-        message: format!("Update Todo {}", todo_id)
-    })
+async fn get_todo(State(state): State<AppState>, Path(todo_id): Path<u64>) -> Result<impl IntoResponse, AppError> {
+    let todo = state.todo_repo.get_todo(todo_id)?;
+    Ok(Json(todo))
 }
 
 
-async fn delete_todo(Path(todo_id): Path<u64>) -> impl IntoResponse {
-    Json(MessageResponse {
-        message: format!("Delete Todo {}", todo_id)
-    })
+async fn update_todo(State(state): State<AppState>, Path(todo_id): Path<u64>, Json(body): Json<UpdateTodo>) -> Result<impl IntoResponse, AppError> {
+    let todo = state.todo_repo.update(todo_id, body)?;
+    Ok(Json(todo))
+}
+
+
+async fn delete_todo(State(state): State<AppState>, Path(todo_id): Path<u64>) -> Result<impl IntoResponse, AppError> {
+    let todo = state.todo_repo.delete(todo_id)?;
+    Ok(Json(todo))
 }
 
 pub fn router() -> Router<AppState> {

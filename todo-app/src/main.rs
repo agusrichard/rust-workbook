@@ -7,6 +7,7 @@ pub mod models;
 pub mod repository;
 pub mod response;
 pub mod app_state;
+pub mod errors;
 
 #[tokio::main]
 async fn main() {
