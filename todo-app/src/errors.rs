@@ -1,11 +1,18 @@
+use crate::response::MessageResponse;
+use axum::Json;
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
-use axum::Json;
-use crate::response::MessageResponse;
 
+#[derive(Debug)]
 pub enum AppError {
     NotFound(String),
-    InternalError(String)
+    InternalError(String),
+}
+
+impl AppError {
+    pub fn not_found(entity: &str, id: u64) -> Self {
+        AppError::NotFound(format!("{} {} not found", entity, id))
+    }
 }
 
 impl IntoResponse for AppError {

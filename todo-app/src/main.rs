@@ -1,13 +1,13 @@
-use std::sync::Arc;
 use crate::app_state::AppState;
 use crate::repository::todo::in_memory::InMemoryTodoRepository;
+use std::sync::Arc;
 
-pub mod routes;
+pub mod app_state;
+pub mod errors;
 pub mod models;
 pub mod repository;
 pub mod response;
-pub mod app_state;
-pub mod errors;
+pub mod routes;
 
 #[tokio::main]
 async fn main() {
