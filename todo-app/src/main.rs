@@ -11,10 +11,13 @@ pub mod routes;
 
 #[tokio::main]
 async fn main() {
-    let app_state = AppState {
+    let v1_state = AppState {
         todo_repo: Arc::new(InMemoryTodoRepository::new()),
     };
-    let app = routes::app(app_state);
+    let v2_state = AppState {
+        todo_repo: Arc::new(InMemoryTodoRepository::new()),
+    };
+    let app = routes::app(v1_state, v2_state);
 
     let host = "0.0.0.0:3000";
     let listener = tokio::net::TcpListener::bind(host).await.unwrap();
