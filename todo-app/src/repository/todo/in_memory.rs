@@ -1,10 +1,12 @@
-use crate::errors::AppError;
-use crate::models::todo::{CreateTodo, Todo, UpdateTodo};
-use crate::repository::todo::TodoRepository;
 use chrono::Utc;
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
+use async_trait::async_trait;
+use crate::errors::AppError;
+use crate::models::todo::{CreateTodo, Todo, UpdateTodo};
+use crate::repository::todo::TodoRepository;
+
 
 pub struct InMemoryTodoRepository {
     db: Arc<Mutex<HashMap<u64, Todo>>>,
@@ -26,8 +28,9 @@ impl InMemoryTodoRepository {
     }
 }
 
+#[async_trait]
 impl TodoRepository for InMemoryTodoRepository {
-    fn create(&self, body: CreateTodo) -> Result<Todo, AppError> {
+    async fn create(&self, body: CreateTodo) -> Result<Todo, AppError> {
         let mut store = self.lock()?;
         let id = self.next_id.fetch_add(1, Ordering::Relaxed);
         let todo = Todo {
@@ -41,12 +44,12 @@ impl TodoRepository for InMemoryTodoRepository {
         Ok(todo)
     }
 
-    fn get_all(&self) -> Result<Vec<Todo>, AppError> {
+    async fn get_all(&self) -> Result<Vec<Todo>, AppError> {
         let store = self.lock()?;
         Ok(store.values().cloned().collect())
     }
 
-    fn get_todo(&self, todo_id: u64) -> Result<Todo, AppError> {
+    async fn get_todo(&self, todo_id: u64) -> Result<Todo, AppError> {
         let store = self.lock()?;
         store
             .get(&todo_id)
@@ -54,7 +57,7 @@ impl TodoRepository for InMemoryTodoRepository {
             .ok_or_else(|| AppError::not_found("Todo", todo_id))
     }
 
-    fn update(&self, todo_id: u64, body: UpdateTodo) -> Result<Todo, AppError> {
+    async fn update(&self, todo_id: u64, body: UpdateTodo) -> Result<Todo, AppError> {
         let mut store = self.lock()?;
         store
             .get_mut(&todo_id)
@@ -73,7 +76,7 @@ impl TodoRepository for InMemoryTodoRepository {
             .ok_or_else(|| AppError::not_found("Todo", todo_id))
     }
 
-    fn delete(&self, todo_id: u64) -> Result<Todo, AppError> {
+    async fn delete(&self, todo_id: u64) -> Result<Todo, AppError> {
         let mut store = self.lock()?;
         store
             .remove(&todo_id)

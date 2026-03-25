@@ -13,12 +13,12 @@ async fn create_todo(
     State(state): State<AppState>,
     Json(body): Json<CreateTodo>,
 ) -> Result<impl IntoResponse, AppError> {
-    let todo = state.todo_repo.create(body)?;
+    let todo = state.todo_repo.create(body).await?;
     Ok((StatusCode::CREATED, Json(todo)))
 }
 
 async fn get_todos(State(state): State<AppState>) -> Result<impl IntoResponse, AppError> {
-    let todos = state.todo_repo.get_all()?;
+    let todos = state.todo_repo.get_all().await?;
     Ok(Json(todos))
 }
 
@@ -26,7 +26,7 @@ async fn get_todo(
     State(state): State<AppState>,
     Path(todo_id): Path<u64>,
 ) -> Result<impl IntoResponse, AppError> {
-    let todo = state.todo_repo.get_todo(todo_id)?;
+    let todo = state.todo_repo.get_todo(todo_id).await?;
     Ok(Json(todo))
 }
 
@@ -35,7 +35,7 @@ async fn update_todo(
     Path(todo_id): Path<u64>,
     Json(body): Json<UpdateTodo>,
 ) -> Result<impl IntoResponse, AppError> {
-    let todo = state.todo_repo.update(todo_id, body)?;
+    let todo = state.todo_repo.update(todo_id, body).await?;
     Ok(Json(todo))
 }
 
@@ -43,7 +43,7 @@ async fn delete_todo(
     State(state): State<AppState>,
     Path(todo_id): Path<u64>,
 ) -> Result<impl IntoResponse, AppError> {
-    state.todo_repo.delete(todo_id)?;
+    state.todo_repo.delete(todo_id).await?;
     Ok(StatusCode::NO_CONTENT)
 }
 

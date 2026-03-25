@@ -13,6 +13,16 @@ services:
       timeout: 5s
       retries: 5
 
+  pgweb:
+    image: sosedoff/pgweb
+    ports:
+      - "8081:8081"
+    environment:
+      DATABASE_URL: postgres://todo_user:todo_password@postgres:5432/todo_db?sslmode=disable
+    depends_on:
+      postgres:
+        condition: service_healthy
+
   app:
     build: .
     volumes:
