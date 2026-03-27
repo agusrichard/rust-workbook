@@ -21,3 +21,4 @@ A collection of Rust solutions to Codewars challenges.
 15. [PI approximation](./015_pi_approximation)
 16. [Ratio of Bouncy Numbers](./016_ratio_of_bouncy_numbers)
 17. [Mean Square Error](./017_mean_square_error)
+18. [Luck check](./018_luck_check)
