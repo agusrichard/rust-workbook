@@ -22,3 +22,4 @@ A collection of Rust solutions to Codewars challenges.
 16. [Ratio of Bouncy Numbers](./016_ratio_of_bouncy_numbers)
 17. [Mean Square Error](./017_mean_square_error)
 18. [Luck check](./018_luck_check)
+19. [Write Number in Expanded Form](./019_write_number_in_expanded_form)
