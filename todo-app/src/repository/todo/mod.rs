@@ -5,6 +5,7 @@ use crate::models::todo::{CreateTodo, Todo, UpdateTodo};
 pub mod in_memory;
 pub mod postgres;
 
+#[cfg_attr(test, mockall::automock)]
 #[async_trait]
 pub trait TodoRepository: Send + Sync {
     async fn create(&self, body: CreateTodo) -> Result<Todo, AppError>;

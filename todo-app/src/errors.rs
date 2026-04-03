@@ -25,3 +25,26 @@ impl IntoResponse for AppError {
         (status, Json(MessageResponse { message })).into_response()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn not_found_formats_message() {
+        let err = AppError::not_found("Todo", 7);
+        assert!(matches!(err, AppError::NotFound(_)));
+        if let AppError::NotFound(msg) = err {
+            assert_eq!(msg, "Todo 7 not found");
+        }
+    }
+
+    #[test]
+    fn internal_error_stores_message() {
+        let err = AppError::InternalError("oops".to_string());
+        assert!(matches!(err, AppError::InternalError(_)));
+        if let AppError::InternalError(msg) = err {
+            assert_eq!(msg, "oops");
+        }
+    }
+}
