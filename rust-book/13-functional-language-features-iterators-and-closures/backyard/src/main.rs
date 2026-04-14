@@ -85,10 +85,46 @@ fn taking_ownership() {
         .unwrap();
 }
 
+fn for_iterator() {
+    let v1 = vec![1, 2, 3];
+
+    let v1_iter = v1.iter();
+
+    for val in v1_iter {
+        println!("Got: {val}");
+    }
+}
+
+
+fn next_iterator() {
+    let v1 = vec![1, 2, 3];
+
+    let mut v1_iter = v1.iter();
+
+    assert_eq!(v1_iter.next(), Some(&1));
+    assert_eq!(v1_iter.next(), Some(&2));
+    assert_eq!(v1_iter.next(), Some(&3));
+    assert_eq!(v1_iter.next(), None);
+}
+
+fn iterator_adapters() {
+    let v1: Vec<i32> = vec![1, 2, 3];
+
+    let result: Vec<i32> = vec![1, 2, 3, 4, 5]
+        .iter()
+        .filter(|&&x| x % 2 == 0)
+        .map(|&x| x * 10)
+        .collect();
+    println!("{result:?}");
+}
+
 
 fn main() {
     inventory();
     immutable_borrowing();
     mutable_borrowing();
     taking_ownership();
+    for_iterator();
+    next_iterator();
+    iterator_adapters();
 }
