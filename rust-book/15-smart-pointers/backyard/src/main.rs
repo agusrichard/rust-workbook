@@ -68,8 +68,8 @@ fn impl_drop2() {
 }
 
 fn main() {
-    // move_closure();
-    // impl_deref();
-    // impl_drop();
+    move_closure();
+    impl_deref();
+    impl_drop();
     impl_drop2();
 }
