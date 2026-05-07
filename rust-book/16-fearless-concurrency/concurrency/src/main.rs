@@ -73,7 +73,7 @@ fn multiple_consumers() {
 }
 
 fn main() {
-    // threads();
-    // single_iterable_producer();
+    threads();
+    single_iterable_producer();
     multiple_consumers();
 }
