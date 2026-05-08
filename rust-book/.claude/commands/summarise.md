@@ -12,6 +12,7 @@ Provide a comprehensive summary of the page in Markdown format. The summary shou
 - Key points and main arguments
 - Important concepts
 - Any significant conclusions or data points
+- Provide diagrams if necessary to explain concepts
 - Provide the whole code
 
 Please create a file and put the summary there. Here's the rule of the naming and where to put it:
