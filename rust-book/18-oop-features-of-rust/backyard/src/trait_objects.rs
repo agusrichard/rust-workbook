@@ -24,16 +24,16 @@ impl ScreenTraitObject {
     }
 }
 
-struct ScreenGenerics<T: Draw> {
-    components: Vec<T>,
+struct ScreenGenerics<'a, T: Draw> {
+    components: Vec<&'a T>,
 }
 
-impl<T> ScreenGenerics<T> where T: Draw {
-    fn new() -> ScreenGenerics<T> {
+impl<'a, T> ScreenGenerics<'a, T> where T: Draw {
+    fn new() -> ScreenGenerics<'a, T> {
         ScreenGenerics { components: vec![] }
     }
 
-    fn add(&mut self, component: T) {
+    fn add(&mut self, component: &'a T) {
         self.components.push(component);
     }
 
@@ -76,13 +76,13 @@ impl Draw for SelectBox {
 
 pub fn run() {
     let mut screen1 = ScreenTraitObject::new();
-    let mut screen2: ScreenGenerics<Button> = ScreenGenerics::new();
+    let mut screen2: ScreenGenerics<'_, Button> = ScreenGenerics::new();
 
     let button1 = Button::new(10, 10, "Hello");
     let button2 = Button::new(20, 20, "World");
 
     screen1.add(Box::new(button1));
-    screen2.add(button2);
+    screen2.add(&button2);
 
     screen1.run();
     screen2.run();
