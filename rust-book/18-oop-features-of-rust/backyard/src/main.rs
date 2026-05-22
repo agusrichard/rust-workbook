@@ -7,7 +7,7 @@ use trait_objects::run as to_run;
 use tradional_oo::run as oodp_run;
 
 fn main() {
-    // wio_run();
-    // to_run();
+    wio_run();
+    to_run();
     oodp_run();
 }
