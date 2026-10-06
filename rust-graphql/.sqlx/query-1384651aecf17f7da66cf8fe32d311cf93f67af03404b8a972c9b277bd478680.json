@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT created_by FROM books WHERE id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "created_by",
+        "ordinal": 0,
+        "type_info": "Integer"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "1384651aecf17f7da66cf8fe32d311cf93f67af03404b8a972c9b277bd478680"
+}

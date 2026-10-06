@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT COUNT(*) AS \"count!: i64\" FROM books\n           WHERE (?1 IS NULL OR author_id = ?1)\n             AND (?2 IS NULL OR instr(lower(title), lower(?2)) > 0)",
+  "describe": {
+    "columns": [
+      {
+        "name": "count!: i64",
+        "ordinal": 0,
+        "type_info": "Integer"
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "d1bac5f5ef4fc52510479108d258accf7f67e6fff7ba2ae5f3d0bd5cb1ba2c59"
+}

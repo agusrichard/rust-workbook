@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT id, name FROM authors\n                 WHERE (?1 IS NULL OR id > ?1)\n                   AND (?2 IS NULL OR id < ?2)\n                 ORDER BY id DESC\n                 LIMIT ?3",
+  "describe": {
+    "columns": [
+      {
+        "name": "id",
+        "ordinal": 0,
+        "type_info": "Integer"
+      },
+      {
+        "name": "name",
+        "ordinal": 1,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "6ff905a7506fd5201aece88de51274a78a4a0b41f59a9b7f07880774ae73b8e0"
+}

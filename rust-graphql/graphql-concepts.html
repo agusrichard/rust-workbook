@@ -1,0 +1,1088 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GraphQL Concepts</title>
+<style>
+  :root {
+    --bg: #fbfaf7;
+    --surface: #ffffff;
+    --text: #22252b;
+    --muted: #666c78;
+    --border: #e3e0d8;
+    --accent: #c2410c;
+    --accent-soft: #fdf0e7;
+    --code-bg: #f3f1ec;
+    --good: #15803d;
+    --bad: #b91c1c;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #16181d;
+      --surface: #1e2128;
+      --text: #e6e4df;
+      --muted: #9aa0ac;
+      --border: #30343d;
+      --accent: #fb923c;
+      --accent-soft: #2b221b;
+      --code-bg: #111318;
+      --good: #4ade80;
+      --bad: #f87171;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 17px/1.65 Georgia, "Iowan Old Style", "Times New Roman", serif;
+  }
+  main { max-width: 720px; margin: 0 auto; padding: 56px 20px 80px; }
+  h1, h2, h3, .label, th, nav, .tag {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  }
+  h1 { font-size: 2.3rem; line-height: 1.15; margin: 0 0 12px; letter-spacing: -0.02em; }
+  h2 {
+    font-size: 1.35rem; margin: 56px 0 12px; padding-top: 20px;
+    border-top: 1px solid var(--border); letter-spacing: -0.01em;
+  }
+  h2 span { color: var(--accent); margin-right: 8px; font-variant-numeric: tabular-nums; }
+  h3 { font-size: 1rem; margin: 28px 0 6px; }
+  p { margin: 0 0 16px; }
+  .lede { font-size: 1.15rem; color: var(--muted); margin-bottom: 28px; }
+  nav { font-size: 0.9rem; display: flex; flex-wrap: wrap; gap: 6px 16px; }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  code, pre { font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 0.86em; }
+  code { background: var(--code-bg); padding: 2px 5px; border-radius: 4px; }
+  pre {
+    background: var(--code-bg); border: 1px solid var(--border); border-radius: 8px;
+    padding: 14px 16px; overflow-x: auto; line-height: 1.5; margin: 0 0 16px;
+  }
+  pre code { background: none; padding: 0; font-size: 1em; }
+  .label {
+    font-size: 0.72rem; font-weight: 600; text-transform: uppercase;
+    letter-spacing: 0.08em; color: var(--muted); margin: 0 0 6px;
+  }
+  .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .pair > div { min-width: 0; }
+  .note {
+    background: var(--accent-soft); border-left: 3px solid var(--accent);
+    padding: 12px 16px; border-radius: 0 8px 8px 0; margin: 0 0 16px;
+  }
+  .note p:last-child { margin: 0; }
+  dl { margin: 0 0 16px; }
+  dt { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; font-weight: 600; margin-top: 14px; }
+  dd { margin: 2px 0 0; color: var(--muted); }
+  ul { padding-left: 22px; margin: 0 0 16px; }
+  li { margin-bottom: 6px; }
+  .table-wrap { overflow-x: auto; margin: 0 0 16px; }
+  table { border-collapse: collapse; width: 100%; font-size: 0.92rem; }
+  th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  th { font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+  .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 16px 18px; }
+  .card h3 { margin-top: 0; }
+  .card ul { margin-bottom: 0; }
+  .yes h3 { color: var(--good); }
+  .no h3 { color: var(--bad); }
+  .toc { padding-left: 22px; margin: 0 0 16px; }
+  .toc li { margin-bottom: 4px; }
+  .file { font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 0.8em; color: var(--muted); margin-left: 6px; }
+  pre { tab-size: 4; }
+  footer { margin-top: 56px; color: var(--muted); font-size: 0.9rem; }
+  @media (max-width: 600px) {
+    .pair, .cols { grid-template-columns: 1fr; }
+    h1 { font-size: 1.9rem; }
+  }
+</style>
+</head>
+<body>
+<main>
+
+<h1>GraphQL Concepts</h1>
+<p class="lede">A short introduction to what GraphQL is, why it exists, and when it is the right tool, with a first taste of it in Rust.</p>
+
+<nav>
+  <a href="#background">1. Background</a>
+  <a href="#concepts">2. Main concepts</a>
+  <a href="#examples">3. Examples</a>
+  <a href="#rust">4. In Rust</a>
+  <a href="#usages">5. Usages</a>
+  <a href="#when">6. When to use it</a>
+  <a href="#reference">7. Code reference</a>
+</nav>
+
+<h2 id="background"><span>1</span>Background</h2>
+<p>GraphQL is a <strong>query language for APIs</strong>. The client describes exactly what data it wants, and the server returns exactly that, in the same shape.</p>
+<p>Facebook created it in 2012 while rebuilding its mobile app. Their REST APIs caused two recurring problems on slow mobile networks:</p>
+<ul>
+  <li><strong>Over-fetching:</strong> an endpoint returns a full object when the screen needs only two fields.</li>
+  <li><strong>Under-fetching:</strong> one screen needs several endpoints, so the app makes many round trips (user, then posts, then comments for each post).</li>
+</ul>
+<p>GraphQL solved both by letting the client ask for everything a screen needs in one request. It was open-sourced in 2015 and is now maintained by the GraphQL Foundation as an open specification, with implementations in most languages, including Rust.</p>
+
+<div class="note">
+  <p><strong>One-line mental model:</strong> REST gives you many URLs that each return a fixed shape. GraphQL gives you one URL and lets you choose the shape.</p>
+</div>
+
+<h2 id="concepts"><span>2</span>Main concepts</h2>
+<dl>
+  <dt>Schema</dt>
+  <dd>The contract between client and server. It lists every type and every operation the API supports. Everything else builds on it.</dd>
+
+  <dt>Types and fields</dt>
+  <dd>Data is described as types (<code>Book</code>, <code>Author</code>) with fields (<code>title</code>, <code>name</code>). Fields can point to other types, which is what forms the "graph". A <code>!</code> means the value is never null.</dd>
+
+  <dt>Query</dt>
+  <dd>A read operation. Similar to <code>GET</code> in REST.</dd>
+
+  <dt>Mutation</dt>
+  <dd>A write operation (create, update, delete). Similar to <code>POST</code>, <code>PUT</code>, <code>DELETE</code>.</dd>
+
+  <dt>Subscription</dt>
+  <dd>A long-lived stream of updates pushed from the server, usually over WebSocket.</dd>
+
+  <dt>Resolver</dt>
+  <dd>The function on the server that produces the value for one field. This is the code you actually write: each field in the schema maps to a resolver.</dd>
+
+  <dt>Single endpoint</dt>
+  <dd>All operations go to one URL, typically <code>POST /graphql</code>. The request body, not the URL, says what you want.</dd>
+</dl>
+
+<h2 id="examples"><span>3</span>Examples</h2>
+
+<h3>A schema</h3>
+<pre><code>type Book {
+  id: ID!
+  title: String!
+  author: Author!
+}
+
+type Author {
+  id: ID!
+  name: String!
+  books: [Book!]!
+}
+
+type Query {
+  book(id: ID!): Book
+  books: [Book!]!
+}
+
+type Mutation {
+  addBook(title: String!, authorId: ID!): Book!
+}</code></pre>
+
+<h3>A query and its response</h3>
+<p>The response mirrors the query. Ask for two fields, get two fields.</p>
+<div class="pair">
+  <div>
+    <p class="label">Request</p>
+<pre><code>{
+  book(id: "1") {
+    title
+    author {
+      name
+    }
+  }
+}</code></pre>
+  </div>
+  <div>
+    <p class="label">Response</p>
+<pre><code>{
+  "data": {
+    "book": {
+      "title": "Dune",
+      "author": {
+        "name": "Frank Herbert"
+      }
+    }
+  }
+}</code></pre>
+  </div>
+</div>
+<p>With REST this would usually be two calls: <code>GET /books/1</code>, then <code>GET /authors/7</code>.</p>
+
+<h3>A mutation</h3>
+<pre><code>mutation {
+  addBook(title: "Children of Dune", authorId: "7") {
+    id
+    title
+  }
+}</code></pre>
+<p>A mutation also returns data, so you can read back the object you just changed in the same request.</p>
+
+<h2 id="rust"><span>4</span>In Rust</h2>
+<p>The most common Rust library is <a href="https://github.com/async-graphql/async-graphql">async-graphql</a> (<a href="https://github.com/graphql-rust/juniper">Juniper</a> is the main alternative). You write plain Rust structs and methods, and the schema is generated from them.</p>
+<pre><code>use async_graphql::{EmptyMutation, EmptySubscription, Object, Schema, SimpleObject};
+
+// A GraphQL type: each struct field becomes a GraphQL field.
+#[derive(SimpleObject)]
+struct Book {
+    id: i32,
+    title: String,
+}
+
+struct Query;
+
+// Each method here is a resolver for a field on the Query type.
+#[Object]
+impl Query {
+    async fn book(&amp;self, id: i32) -&gt; Option&lt;Book&gt; {
+        (id == 1).then(|| Book { id, title: "Dune".into() })
+    }
+}
+
+#[tokio::main]
+async fn main() {
+    let schema = Schema::new(Query, EmptyMutation, EmptySubscription);
+    let res = schema.execute("{ book(id: 1) { title } }").await;
+    println!("{}", serde_json::to_string(&amp;res).unwrap());
+    // {"data":{"book":{"title":"Dune"}}}
+}</code></pre>
+<p>Notice how the concepts line up: the struct is a <em>type</em>, the method is a <em>resolver</em>, and Rust's <code>Option&lt;Book&gt;</code> becomes a nullable <code>Book</code> in the schema. Rust's type system and GraphQL's type system fit together well, which is a large part of why the pairing is pleasant.</p>
+
+<h2 id="usages"><span>5</span>Usages</h2>
+<ul>
+  <li><strong>Mobile and web apps</strong> with many screens that each need a different slice of the same data.</li>
+  <li><strong>API gateway / backend-for-frontend:</strong> one GraphQL layer in front of several microservices or databases, so clients see a single unified API.</li>
+  <li><strong>Public developer APIs</strong> where consumers have needs you cannot predict (GitHub and Shopify both offer one).</li>
+  <li><strong>Realtime features</strong> like chat, notifications, and live dashboards, via subscriptions.</li>
+  <li><strong>Fast-moving frontends:</strong> the UI team can add a field to a query without waiting for a new backend endpoint.</li>
+</ul>
+
+<h2 id="when"><span>6</span>When to use it instead of other API styles</h2>
+<div class="table-wrap">
+<table>
+  <thead>
+    <tr><th></th><th>REST</th><th>GraphQL</th><th>gRPC</th></tr>
+  </thead>
+  <tbody>
+    <tr><td><strong>Shape of data</strong></td><td>Fixed by server</td><td>Chosen by client</td><td>Fixed by server</td></tr>
+    <tr><td><strong>Endpoints</strong></td><td>One per resource</td><td>One</td><td>One per method</td></tr>
+    <tr><td><strong>Contract</strong></td><td>Optional (OpenAPI)</td><td>Required schema</td><td>Required (protobuf)</td></tr>
+    <tr><td><strong>HTTP caching</strong></td><td>Easy, built in</td><td>Needs extra work</td><td>Not typical</td></tr>
+    <tr><td><strong>Best at</strong></td><td>Simple, public, cacheable resources</td><td>Flexible data for UIs</td><td>Fast service-to-service calls</td></tr>
+  </tbody>
+</table>
+</div>
+
+<div class="cols">
+  <div class="card yes">
+    <h3>Choose GraphQL when</h3>
+    <ul>
+      <li>Different clients need different views of the same data.</li>
+      <li>Your data is nested and connected.</li>
+      <li>Screens currently need several REST calls to render.</li>
+      <li>You want a typed, self-documenting API.</li>
+      <li>You are combining many backends behind one API.</li>
+    </ul>
+  </div>
+  <div class="card no">
+    <h3>Choose something else when</h3>
+    <ul>
+      <li>The API is small, simple CRUD: <strong>REST</strong> is less work.</li>
+      <li>You rely heavily on HTTP/CDN caching: <strong>REST</strong>.</li>
+      <li>You mostly serve file uploads or downloads: <strong>REST</strong>.</li>
+      <li>It is internal, high-throughput service-to-service traffic: <strong>gRPC</strong>.</li>
+    </ul>
+  </div>
+</div>
+
+<h3>Trade-offs to know about</h3>
+<ul>
+  <li><strong>N+1 queries:</strong> a list of 50 books that each resolve an author can trigger 51 database calls. The standard fix is batching with a <em>DataLoader</em>.</li>
+  <li><strong>Expensive queries:</strong> clients can ask for deeply nested data, so servers usually set depth or complexity limits.</li>
+  <li><strong>Errors look different:</strong> responses are typically <code>200 OK</code> with problems listed in an <code>errors</code> array, rather than signalled by HTTP status codes.</li>
+  <li><strong>More setup:</strong> a schema, resolvers, and tooling are overhead that a tiny API may not need.</li>
+</ul>
+
+<h2 id="reference"><span>7</span>Code reference</h2>
+<p>A complete, working example of every kind of code this project needs. It deliberately uses a different subject, <strong>projects and tasks</strong>, so you can read the pattern here and write the books-and-authors version yourself.</p>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>In this reference</th><th>In your project</th></tr></thead>
+  <tbody>
+    <tr><td><code>Project</code> (has many tasks)</td><td><code>Author</code> (has many books)</td></tr>
+    <tr><td><code>Task</code> (belongs to a project)</td><td><code>Book</code> (belongs to an author)</td></tr>
+    <tr><td><code>taskAdded</code></td><td><code>bookAdded</code></td></tr>
+    <tr><td><code>User</code>, <code>register</code>, <code>login</code>, <code>me</code></td><td>The same</td></tr>
+  </tbody>
+</table>
+</div>
+
+<div class="note">
+  <p>This code was compiled and run with <code>async-graphql</code> 7.2, <code>axum</code> 0.8, and <code>sqlx</code> 0.8. Its five tests pass, and the queries and mutations at the end were checked against the running server. The subscription is covered by a test, not by a browser session. It is not a full CRUD for both types: it shows each pattern once.</p>
+</div>
+
+<p>The files, in the order the milestones need them:</p>
+<ol class="toc">
+    <li><a href="#ref-deps">Dependencies</a> <span class="file">Cargo.toml</span></li>
+    <li><a href="#ref-main">Server and request handler</a> <span class="file">src/main.rs</span></li>
+    <li><a href="#ref-sql">Tables and seed data</a> <span class="file">migrations/0001_init.sql</span></li>
+    <li><a href="#ref-db">Connecting to SQLite</a> <span class="file">src/db.rs</span></li>
+    <li><a href="#ref-models">Types: objects, relations, inputs</a> <span class="file">src/models.rs</span></li>
+    <li><a href="#ref-schema">Assembling the schema</a> <span class="file">src/schema/mod.rs</span></li>
+    <li><a href="#ref-query">Queries and pagination</a> <span class="file">src/schema/query.rs</span></li>
+    <li><a href="#ref-mutation">Mutations, validation, and errors</a> <span class="file">src/schema/mutation.rs</span></li>
+    <li><a href="#ref-auth">Authentication</a> <span class="file">src/auth.rs</span></li>
+    <li><a href="#ref-sub">Subscriptions</a> <span class="file">src/schema/subscription.rs</span></li>
+    <li><a href="#ref-tests">Tests</a> <span class="file">src/tests.rs</span></li>
+</ol>
+
+<h3 id="ref-deps">Dependencies</h3>
+<p class="label">Cargo.toml &middot; All milestones</p>
+<p>The versions this reference was compiled with. <code>sqlx</code> 0.9 needs a newer Rust than 1.92, so <code>cargo add</code> picks 0.8. The tokio <code>time</code> feature is only used by the subscription test.</p>
+<pre><code>[dependencies]
+argon2 = "0.6.0"
+async-graphql = "7.2.1"
+async-graphql-axum = "7.2.1"
+axum = "0.8.9"
+dotenvy = "0.15.7"
+jsonwebtoken = { version = "11.1.0", features = ["rust_crypto"] }
+serde = { version = "1.0.229", features = ["derive"] }
+sqlx = { version = "0.8.6", features = ["runtime-tokio", "sqlite"] }
+tokio = { version = "1.53.2", features = ["macros", "rt-multi-thread", "net", "sync", "time"] }
+tokio-stream = { version = "0.1.19", features = ["sync"] }
+
+[dev-dependencies]
+serde_json = "1.0.151"</code></pre>
+
+<h3 id="ref-main">Server and request handler</h3>
+<p class="label">src/main.rs &middot; Milestones 1, 8, 9</p>
+<p>Reads the config, builds the schema, and maps three routes: the GraphiQL page, the query endpoint, and the WebSocket for subscriptions. Before authentication exists, the <code>/graphql</code> route can simply be <code>.route_service("/graphql", GraphQL::new(schema))</code>, with no state and no handler.</p>
+<pre><code>mod auth;
+mod db;
+mod models;
+mod schema;
+#[cfg(test)]
+mod tests;
+
+use async_graphql::http::GraphiQLSource;
+use async_graphql_axum::{GraphQLRequest, GraphQLResponse, GraphQLSubscription};
+use axum::{
+    Router,
+    extract::State,
+    http::HeaderMap,
+    response::{Html, IntoResponse},
+    routing::{get, post},
+};
+use tokio::net::TcpListener;
+
+use auth::JwtSecret;
+use schema::AppSchema;
+
+// Shared with every HTTP handler.
+#[derive(Clone)]
+struct AppState {
+    schema: AppSchema,
+    secret: JwtSecret,
+}
+
+async fn graphiql() -&gt; impl IntoResponse {
+    Html(
+        GraphiQLSource::build()
+            .endpoint("/graphql")
+            .subscription_endpoint("/ws")
+            .finish(),
+    )
+}
+
+// Our own handler instead of the ready-made GraphQL service,
+// so we can look at the headers before the query runs.
+async fn graphql(
+    State(state): State&lt;AppState&gt;,
+    headers: HeaderMap,
+    request: GraphQLRequest,
+) -&gt; GraphQLResponse {
+    let mut request = request.into_inner();
+
+    // Per-request data: only this request sees this CurrentUser.
+    if let Some(user) = auth::user_from_headers(&amp;headers, &amp;state.secret) {
+        request = request.data(user);
+    }
+
+    state.schema.execute(request).await.into()
+}
+
+#[tokio::main]
+async fn main() {
+    dotenvy::dotenv().ok(); // load .env if present
+
+    let database_url = std::env::var("DATABASE_URL").expect("DATABASE_URL is not set");
+    let secret = JwtSecret(std::env::var("JWT_SECRET").expect("JWT_SECRET is not set"));
+
+    let pool = db::connect(&amp;database_url).await.unwrap();
+    let schema = schema::build_schema(pool, secret.clone());
+
+    let app = Router::new()
+        .route("/", get(graphiql))
+        .route("/graphql", post(graphql))
+        // Subscriptions use a WebSocket, served by a ready-made service.
+        .route_service("/ws", GraphQLSubscription::new(schema.clone()))
+        .with_state(AppState { schema, secret });
+
+    let listener = TcpListener::bind("127.0.0.1:8000").await.unwrap();
+    println!("GraphiQL: http://localhost:8000");
+    axum::serve(listener, app).await.unwrap();
+}</code></pre>
+
+<h3 id="ref-sql">Tables and seed data</h3>
+<p class="label">migrations/0001_init.sql &middot; Milestone 2</p>
+<p>Plain SQL. The file name must start with a version number. <code>REFERENCES</code> is the foreign key that makes the database itself reject a task pointing at a missing project.</p>
+<pre><code>CREATE TABLE projects (
+    id   INTEGER PRIMARY KEY,
+    name TEXT NOT NULL
+);
+
+CREATE TABLE tasks (
+    id         INTEGER PRIMARY KEY,
+    title      TEXT NOT NULL,
+    done       BOOLEAN NOT NULL DEFAULT FALSE,
+    project_id INTEGER NOT NULL REFERENCES projects (id)
+);
+
+CREATE TABLE users (
+    id            INTEGER PRIMARY KEY,
+    username      TEXT NOT NULL UNIQUE,
+    password_hash TEXT NOT NULL
+);
+
+INSERT INTO projects (name) VALUES ('Garden'), ('Website');
+INSERT INTO tasks (title, project_id) VALUES ('Buy seeds', 1), ('Dig beds', 1), ('Pick a domain', 2);</code></pre>
+
+<h3 id="ref-db">Connecting to SQLite</h3>
+<p class="label">src/db.rs &middot; Milestone 2</p>
+<p>Opens a connection pool and applies the migrations. The pool is what every resolver uses to talk to the database.</p>
+<pre><code>use std::str::FromStr;
+
+use sqlx::SqlitePool;
+use sqlx::sqlite::SqliteConnectOptions;
+
+pub async fn connect(url: &amp;str) -&gt; Result&lt;SqlitePool, sqlx::Error&gt; {
+    // create_if_missing: make the .db file on first run.
+    let options = SqliteConnectOptions::from_str(url)?.create_if_missing(true);
+    let pool = SqlitePool::connect_with(options).await?;
+
+    // Runs every file in ./migrations that has not been applied yet.
+    sqlx::migrate!().run(&amp;pool).await?;
+    Ok(pool)
+}</code></pre>
+
+<h3 id="ref-models">Types: objects, relations, inputs</h3>
+<p class="label">src/models.rs &middot; Milestones 2 to 5, 7, 8</p>
+<p>Every type that appears in the GraphQL schema. Three kinds: output objects (<code>SimpleObject</code>), computed fields and relations on them (<code>ComplexObject</code>), and argument types (<code>InputObject</code>).</p>
+<pre><code>use async_graphql::{ComplexObject, Context, ID, InputObject, Result, SimpleObject};
+use sqlx::{FromRow, SqlitePool};
+
+// SimpleObject: every struct field becomes a GraphQL field.
+// FromRow: sqlx can build this struct from a database row.
+// complex: more fields are defined in the #[ComplexObject] block below.
+#[derive(SimpleObject, FromRow, Clone)]
+#[graphql(complex)]
+pub struct Task {
+    #[graphql(skip)] // hidden; re-exposed below as an ID
+    pub id: i64,
+    pub title: String,
+    pub done: bool,
+    #[graphql(skip)] // hidden; clients use `project` instead
+    pub project_id: i64,
+}
+
+#[ComplexObject]
+impl Task {
+    // SQLite gives us an i64, GraphQL should show an ID.
+    async fn id(&amp;self) -&gt; ID {
+        self.id.into()
+    }
+
+    // A relation: not a column, but a query run when the field is requested.
+    async fn project(&amp;self, ctx: &amp;Context&lt;'_&gt;) -&gt; Result&lt;Project&gt; {
+        let pool = ctx.data::&lt;SqlitePool&gt;()?;
+        let project = sqlx::query_as("SELECT * FROM projects WHERE id = ?")
+            .bind(self.project_id)
+            .fetch_one(pool)
+            .await?;
+        Ok(project)
+    }
+}
+
+#[derive(SimpleObject, FromRow, Clone)]
+#[graphql(complex)]
+pub struct Project {
+    #[graphql(skip)]
+    pub id: i64,
+    pub name: String,
+}
+
+#[ComplexObject]
+impl Project {
+    async fn id(&amp;self) -&gt; ID {
+        self.id.into()
+    }
+
+    // The same relation from the other side: one project, many tasks.
+    async fn tasks(&amp;self, ctx: &amp;Context&lt;'_&gt;) -&gt; Result&lt;Vec&lt;Task&gt;&gt; {
+        let pool = ctx.data::&lt;SqlitePool&gt;()?;
+        let tasks = sqlx::query_as("SELECT * FROM tasks WHERE project_id = ? ORDER BY id")
+            .bind(self.id)
+            .fetch_all(pool)
+            .await?;
+        Ok(tasks)
+    }
+}
+
+// InputObject: a type clients send as an argument.
+#[derive(InputObject)]
+pub struct CreateTaskInput {
+    pub title: String,
+    pub project_id: ID, // projectId in GraphQL
+}
+
+// Option&lt;T&gt; = the client may leave the field out.
+#[derive(InputObject)]
+pub struct UpdateTaskInput {
+    pub title: Option&lt;String&gt;,
+    pub done: Option&lt;bool&gt;,
+}
+
+// One page of a list, plus what the client needs to ask for the next one.
+#[derive(SimpleObject)]
+pub struct TaskPage {
+    pub items: Vec&lt;Task&gt;,
+    pub total_count: i64,
+    pub has_next_page: bool,
+}
+
+#[derive(SimpleObject, FromRow, Clone)]
+#[graphql(complex)]
+pub struct User {
+    #[graphql(skip)]
+    pub id: i64,
+    pub username: String,
+    #[graphql(skip)] // never leaves the server
+    pub password_hash: String,
+}
+
+#[ComplexObject]
+impl User {
+    async fn id(&amp;self) -&gt; ID {
+        self.id.into()
+    }
+}
+
+#[derive(InputObject)]
+pub struct CredentialsInput {
+    pub username: String,
+    pub password: String,
+}
+
+#[derive(SimpleObject)]
+pub struct AuthPayload {
+    pub token: String,
+    pub user: User,
+}</code></pre>
+
+<h3 id="ref-schema">Assembling the schema</h3>
+<p class="label">src/schema/mod.rs &middot; Milestones 1, 2, 9</p>
+<p>Puts the three root types together and registers the shared values that resolvers fetch with <code>ctx.data::&lt;T&gt;()</code>. Data is looked up by type, which is why the secret is wrapped in its own <code>JwtSecret</code> type.</p>
+<pre><code>mod mutation;
+mod query;
+mod subscription;
+
+use async_graphql::Schema;
+use sqlx::SqlitePool;
+use tokio::sync::broadcast;
+
+use crate::auth::JwtSecret;
+use crate::models::Task;
+use mutation::Mutation;
+use query::Query;
+use subscription::Subscription;
+
+// A short name for the full schema type.
+pub type AppSchema = Schema&lt;Query, Mutation, Subscription&gt;;
+
+pub fn build_schema(pool: SqlitePool, secret: JwtSecret) -&gt; AppSchema {
+    // The channel that carries "task added" events to subscribers.
+    let (events, _) = broadcast::channel::&lt;Task&gt;(16);
+
+    // .data(...) makes a value available to every resolver through ctx.data::&lt;T&gt;().
+    Schema::build(Query, Mutation, Subscription)
+        .data(pool)
+        .data(secret)
+        .data(events)
+        .finish()
+}</code></pre>
+
+<h3 id="ref-query">Queries and pagination</h3>
+<p class="label">src/schema/query.rs &middot; Milestones 3, 7, 8</p>
+<p>Reads. Note the three sqlx fetch methods: <code>fetch_all</code> for a list, <code>fetch_optional</code> for zero or one row, <code>fetch_one</code> for exactly one. The <code>?</code> operator turns any error into a GraphQL error.</p>
+<pre><code>use async_graphql::{Context, Error, ID, Object, Result};
+use sqlx::SqlitePool;
+
+use crate::auth::CurrentUser;
+use crate::models::{Project, Task, TaskPage, User};
+
+pub struct Query;
+
+#[Object]
+impl Query {
+    // A plain list.
+    async fn projects(&amp;self, ctx: &amp;Context&lt;'_&gt;) -&gt; Result&lt;Vec&lt;Project&gt;&gt; {
+        let pool = ctx.data::&lt;SqlitePool&gt;()?;
+        let projects = sqlx::query_as("SELECT * FROM projects ORDER BY id")
+            .fetch_all(pool)
+            .await?;
+        Ok(projects)
+    }
+
+    // One item by id. Option = null when nothing matches.
+    async fn task(&amp;self, ctx: &amp;Context&lt;'_&gt;, id: ID) -&gt; Result&lt;Option&lt;Task&gt;&gt; {
+        let pool = ctx.data::&lt;SqlitePool&gt;()?;
+        let id: i64 = id.parse()?;
+        let task = sqlx::query_as("SELECT * FROM tasks WHERE id = ?")
+            .bind(id)
+            .fetch_optional(pool)
+            .await?;
+        Ok(task)
+    }
+
+    // A paginated list. Arguments with defaults are optional for the client.
+    async fn tasks(
+        &amp;self,
+        ctx: &amp;Context&lt;'_&gt;,
+        #[graphql(default = 10)] limit: i64,
+        #[graphql(default = 0)] offset: i64,
+    ) -&gt; Result&lt;TaskPage&gt; {
+        if !(1..=50).contains(&amp;limit) || offset &lt; 0 {
+            return Err(Error::new("limit must be 1 to 50 and offset 0 or more"));
+        }
+        let pool = ctx.data::&lt;SqlitePool&gt;()?;
+
+        // A fixed ORDER BY keeps pages from overlapping.
+        let items: Vec&lt;Task&gt; = sqlx::query_as("SELECT * FROM tasks ORDER BY id LIMIT ? OFFSET ?")
+            .bind(limit)
+            .bind(offset)
+            .fetch_all(pool)
+            .await?;
+
+        // query_scalar: for a query that returns a single value.
+        let total_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM tasks")
+            .fetch_one(pool)
+            .await?;
+
+        Ok(TaskPage {
+            has_next_page: offset + (items.len() as i64) &lt; total_count,
+            items,
+            total_count,
+        })
+    }
+
+    // data_opt returns None when the request is anonymous.
+    async fn me(&amp;self, ctx: &amp;Context&lt;'_&gt;) -&gt; Result&lt;Option&lt;User&gt;&gt; {
+        let Some(current) = ctx.data_opt::&lt;CurrentUser&gt;() else {
+            return Ok(None);
+        };
+        let pool = ctx.data::&lt;SqlitePool&gt;()?;
+        let user = sqlx::query_as("SELECT * FROM users WHERE id = ?")
+            .bind(current.id)
+            .fetch_optional(pool)
+            .await?;
+        Ok(user)
+    }
+}</code></pre>
+
+<h3 id="ref-mutation">Mutations, validation, and errors</h3>
+<p class="label">src/schema/mutation.rs &middot; Milestones 5, 6, 8, 9</p>
+<p>Writes. Each one follows the same order: get the pool, parse the id, validate, run the SQL, return the result or a readable error.</p>
+<pre><code>use async_graphql::{Context, Error, ID, Object, Result};
+use sqlx::SqlitePool;
+use tokio::sync::broadcast;
+
+use crate::auth::{self, JwtSecret, LoggedIn};
+use crate::models::{AuthPayload, CreateTaskInput, CredentialsInput, Task, UpdateTaskInput, User};
+
+pub struct Mutation;
+
+#[Object]
+impl Mutation {
+    // ---- Create ----
+    #[graphql(guard = "LoggedIn")] // rejects anonymous requests
+    async fn create_task(&amp;self, ctx: &amp;Context&lt;'_&gt;, input: CreateTaskInput) -&gt; Result&lt;Task&gt; {
+        let pool = ctx.data::&lt;SqlitePool&gt;()?;
+        let project_id: i64 = input.project_id.parse()?;
+
+        // Validate the input.
+        let title = input.title.trim();
+        if title.is_empty() {
+            return Err(Error::new("Title cannot be blank"));
+        }
+
+        // Check the parent exists, so the client gets a readable error.
+        let exists: Option&lt;i64&gt; = sqlx::query_scalar("SELECT id FROM projects WHERE id = ?")
+            .bind(project_id)
+            .fetch_optional(pool)
+            .await?;
+        if exists.is_none() {
+            return Err(Error::new(format!("Project {project_id} not found")));
+        }
+
+        // RETURNING hands back the row that was just written.
+        let task: Task =
+            sqlx::query_as("INSERT INTO tasks (title, project_id) VALUES (?, ?) RETURNING *")
+                .bind(title)
+                .bind(project_id)
+                .fetch_one(pool)
+                .await?;
+
+        // Tell subscribers. send() errors when nobody is listening; ignore that.
+        let events = ctx.data::&lt;broadcast::Sender&lt;Task&gt;&gt;()?;
+        let _ = events.send(task.clone());
+
+        Ok(task)
+    }
+
+    // ---- Partial update ----
+    #[graphql(guard = "LoggedIn")]
+    async fn update_task(&amp;self, ctx: &amp;Context&lt;'_&gt;, id: ID, input: UpdateTaskInput) -&gt; Result&lt;Task&gt; {
+        let pool = ctx.data::&lt;SqlitePool&gt;()?;
+        let id: i64 = id.parse()?;
+
+        // COALESCE(?, column): use the new value, or keep the old one when it is NULL.
+        let task = sqlx::query_as(
+            "UPDATE tasks
+             SET title = COALESCE(?, title), done = COALESCE(?, done)
+             WHERE id = ?
+             RETURNING *",
+        )
+        .bind(input.title)
+        .bind(input.done)
+        .bind(id)
+        .fetch_optional(pool)
+        .await?;
+
+        // No row came back = the id did not exist.
+        task.ok_or_else(|| Error::new(format!("Task {id} not found")))
+    }
+
+    // ---- Delete ----
+    #[graphql(guard = "LoggedIn")]
+    async fn delete_task(&amp;self, ctx: &amp;Context&lt;'_&gt;, id: ID) -&gt; Result&lt;bool&gt; {
+        let pool = ctx.data::&lt;SqlitePool&gt;()?;
+        let id: i64 = id.parse()?;
+
+        let result = sqlx::query("DELETE FROM tasks WHERE id = ?")
+            .bind(id)
+            .execute(pool)
+            .await?;
+
+        if result.rows_affected() == 0 {
+            return Err(Error::new(format!("Task {id} not found")));
+        }
+        Ok(true)
+    }
+
+    // ---- Delete a parent that may still have children ----
+    #[graphql(guard = "LoggedIn")]
+    async fn delete_project(&amp;self, ctx: &amp;Context&lt;'_&gt;, id: ID) -&gt; Result&lt;bool&gt; {
+        let pool = ctx.data::&lt;SqlitePool&gt;()?;
+        let id: i64 = id.parse()?;
+
+        let task_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM tasks WHERE project_id = ?")
+            .bind(id)
+            .fetch_one(pool)
+            .await?;
+        if task_count &gt; 0 {
+            return Err(Error::new(format!("Project {id} still has {task_count} tasks")));
+        }
+
+        let result = sqlx::query("DELETE FROM projects WHERE id = ?")
+            .bind(id)
+            .execute(pool)
+            .await?;
+        if result.rows_affected() == 0 {
+            return Err(Error::new(format!("Project {id} not found")));
+        }
+        Ok(true)
+    }
+
+    // ---- Register and login (no guard: these are how you get a token) ----
+    async fn register(&amp;self, ctx: &amp;Context&lt;'_&gt;, input: CredentialsInput) -&gt; Result&lt;AuthPayload&gt; {
+        let pool = ctx.data::&lt;SqlitePool&gt;()?;
+        let username = input.username.trim();
+        if username.is_empty() || input.password.len() &lt; 8 {
+            return Err(Error::new("Username required, password at least 8 characters"));
+        }
+
+        let password_hash = auth::hash_password(&amp;input.password)?;
+        let user: User = sqlx::query_as(
+            "INSERT INTO users (username, password_hash) VALUES (?, ?) RETURNING *",
+        )
+        .bind(username)
+        .bind(password_hash)
+        .fetch_one(pool)
+        .await
+        // The UNIQUE constraint rejects a duplicate; turn that into a readable error.
+        .map_err(|_| Error::new("Username is already taken"))?;
+
+        let token = auth::make_token(user.id, ctx.data::&lt;JwtSecret&gt;()?)?;
+        Ok(AuthPayload { token, user })
+    }
+
+    async fn login(&amp;self, ctx: &amp;Context&lt;'_&gt;, input: CredentialsInput) -&gt; Result&lt;AuthPayload&gt; {
+        let pool = ctx.data::&lt;SqlitePool&gt;()?;
+        let user: Option&lt;User&gt; = sqlx::query_as("SELECT * FROM users WHERE username = ?")
+            .bind(input.username.trim())
+            .fetch_optional(pool)
+            .await?;
+
+        // One message for both failures, so nobody can probe which usernames exist.
+        let user = user
+            .filter(|u| auth::verify_password(&amp;input.password, &amp;u.password_hash))
+            .ok_or_else(|| Error::new("Invalid username or password"))?;
+
+        let token = auth::make_token(user.id, ctx.data::&lt;JwtSecret&gt;()?)?;
+        Ok(AuthPayload { token, user })
+    }
+}</code></pre>
+
+<h3 id="ref-auth">Authentication</h3>
+<p class="label">src/auth.rs &middot; Milestone 8</p>
+<p>Four small pieces: hashing passwords, creating tokens, reading a token from a request, and a guard that blocks anonymous requests. The handler in <code>main.rs</code> and <code>register</code>/<code>login</code> in <code>mutation.rs</code> are what call them.</p>
+<pre><code>use std::time::{Duration, SystemTime, UNIX_EPOCH};
+
+use argon2::Argon2;
+use argon2::password_hash::{PasswordHasher, PasswordVerifier, phc::PasswordHash};
+use async_graphql::{Context, Guard, Result};
+use axum::http::HeaderMap;
+use jsonwebtoken::{DecodingKey, EncodingKey, Header, Validation};
+use serde::{Deserialize, Serialize};
+
+// ---- Passwords ----
+
+pub fn hash_password(password: &amp;str) -&gt; Result&lt;String&gt; {
+    // A random salt is generated for you and stored inside the hash string.
+    let hash = Argon2::default().hash_password(password.as_bytes())?;
+    Ok(hash.to_string()) // this string is what you store
+}
+
+pub fn verify_password(password: &amp;str, stored_hash: &amp;str) -&gt; bool {
+    match PasswordHash::new(stored_hash) {
+        Ok(hash) =&gt; Argon2::default()
+            .verify_password(password.as_bytes(), &amp;hash)
+            .is_ok(),
+        Err(_) =&gt; false,
+    }
+}
+
+// ---- Tokens ----
+
+// The secret used to sign tokens. A newtype so it can live in schema data.
+#[derive(Clone)]
+pub struct JwtSecret(pub String);
+
+// What is stored inside the token.
+#[derive(Serialize, Deserialize)]
+struct Claims {
+    sub: i64,   // subject: the user id
+    exp: usize, // expiry, as seconds since 1970
+}
+
+pub fn make_token(user_id: i64, secret: &amp;JwtSecret) -&gt; Result&lt;String&gt; {
+    let expires = SystemTime::now() + Duration::from_secs(24 * 60 * 60);
+    let claims = Claims {
+        sub: user_id,
+        exp: expires.duration_since(UNIX_EPOCH)?.as_secs() as usize,
+    };
+    let key = EncodingKey::from_secret(secret.0.as_bytes());
+    Ok(jsonwebtoken::encode(&amp;Header::default(), &amp;claims, &amp;key)?)
+}
+
+// ---- The current user ----
+
+// Attached to a request when it carries a valid token.
+pub struct CurrentUser {
+    pub id: i64,
+}
+
+// Reads "Authorization: Bearer &lt;token&gt;". None = anonymous.
+pub fn user_from_headers(headers: &amp;HeaderMap, secret: &amp;JwtSecret) -&gt; Option&lt;CurrentUser&gt; {
+    let value = headers.get("Authorization")?.to_str().ok()?;
+    let token = value.strip_prefix("Bearer ")?;
+    let key = DecodingKey::from_secret(secret.0.as_bytes());
+    // decode checks the signature and the expiry.
+    let data = jsonwebtoken::decode::&lt;Claims&gt;(token, &amp;key, &amp;Validation::default()).ok()?;
+    Some(CurrentUser { id: data.claims.sub })
+}
+
+// ---- Guard ----
+
+// A reusable check that runs before a resolver.
+pub struct LoggedIn;
+
+impl Guard for LoggedIn {
+    async fn check(&amp;self, ctx: &amp;Context&lt;'_&gt;) -&gt; Result&lt;()&gt; {
+        match ctx.data_opt::&lt;CurrentUser&gt;() {
+            Some(_) =&gt; Ok(()),
+            None =&gt; Err("Not authenticated".into()),
+        }
+    }
+}</code></pre>
+
+<h3 id="ref-sub">Subscriptions</h3>
+<p class="label">src/schema/subscription.rs &middot; Milestone 9</p>
+<p>The receiving end of the broadcast channel. The sending end is the <code>events.send(...)</code> call in <code>create_task</code>.</p>
+<pre><code>use async_graphql::{Context, Result, Subscription};
+use tokio::sync::broadcast;
+use tokio_stream::wrappers::BroadcastStream;
+use tokio_stream::{Stream, StreamExt};
+
+use crate::models::Task;
+
+pub struct Subscription;
+
+#[Subscription]
+impl Subscription {
+    // Returns a stream: one Task is pushed to the client per event.
+    // `+ use&lt;&gt;` says the stream does not borrow from `ctx`, so it can outlive this call.
+    async fn task_added(&amp;self, ctx: &amp;Context&lt;'_&gt;) -&gt; Result&lt;impl Stream&lt;Item = Task&gt; + use&lt;&gt;&gt; {
+        let events = ctx.data::&lt;broadcast::Sender&lt;Task&gt;&gt;()?;
+        // subscribe() gives this client its own receiver.
+        let stream = BroadcastStream::new(events.subscribe());
+        // Items are Results (a slow client can miss events); keep the Ok ones.
+        Ok(stream.filter_map(|event| event.ok()))
+    }
+}</code></pre>
+
+<h3 id="ref-tests">Tests</h3>
+<p class="label">src/tests.rs &middot; Milestone 10</p>
+<p>Tests run queries straight against the schema, with no HTTP server. <code>serde_json</code> is a dev-dependency used to compare results.</p>
+<pre><code>use std::time::Duration;
+
+use async_graphql::Request;
+use serde_json::json;
+use sqlx::sqlite::SqlitePoolOptions;
+use tokio_stream::StreamExt;
+
+use crate::auth::{CurrentUser, JwtSecret};
+use crate::schema::{AppSchema, build_schema};
+
+// A fresh database per test. Each connection to sqlite::memory: is its own
+// database, so the pool must be limited to one connection.
+async fn test_schema() -&gt; AppSchema {
+    let pool = SqlitePoolOptions::new()
+        .max_connections(1)
+        .connect("sqlite::memory:")
+        .await
+        .unwrap();
+    sqlx::migrate!().run(&amp;pool).await.unwrap();
+    build_schema(pool, JwtSecret("test-secret".into()))
+}
+
+// A request that looks logged in: attach CurrentUser, as the handler does.
+fn as_user(query: &amp;str) -&gt; Request {
+    Request::new(query).data(CurrentUser { id: 1 })
+}
+
+#[tokio::test]
+async fn query_returns_data() {
+    let schema = test_schema().await;
+    let response = schema.execute("{ task(id: 1) { title project { name } } }").await;
+
+    assert!(response.errors.is_empty());
+    assert_eq!(
+        response.data.into_json().unwrap(),
+        json!({ "task": { "title": "Buy seeds", "project": { "name": "Garden" } } })
+    );
+}
+
+#[tokio::test]
+async fn pagination_reports_next_page() {
+    let schema = test_schema().await;
+    let response = schema
+        .execute("{ tasks(limit: 2, offset: 0) { items { id } totalCount hasNextPage } }")
+        .await;
+
+    assert_eq!(
+        response.data.into_json().unwrap(),
+        json!({ "tasks": {
+            "items": [{ "id": "1" }, { "id": "2" }],
+            "totalCount": 3,
+            "hasNextPage": true
+        } })
+    );
+}
+
+#[tokio::test]
+async fn mutation_needs_login() {
+    let schema = test_schema().await;
+    let query = r#"mutation { createTask(input: { title: "Water", projectId: 1 }) { title } }"#;
+
+    let anonymous = schema.execute(query).await;
+    assert_eq!(anonymous.errors[0].message, "Not authenticated");
+
+    let logged_in = schema.execute(as_user(query)).await;
+    assert!(logged_in.errors.is_empty());
+}
+
+#[tokio::test]
+async fn unknown_id_is_an_error() {
+    let schema = test_schema().await;
+    let response = schema.execute(as_user("mutation { deleteTask(id: 99) }")).await;
+    assert_eq!(response.errors[0].message, "Task 99 not found");
+}
+
+#[tokio::test]
+async fn subscription_receives_new_task() {
+    let schema = test_schema().await;
+    let mut stream = schema.execute_stream("subscription { taskAdded { title } }");
+
+    // Poll once so the subscription is registered before the mutation runs.
+    // Nothing has been sent yet, so this is expected to time out.
+    let nothing_yet = tokio::time::timeout(Duration::from_millis(50), stream.next()).await;
+    assert!(nothing_yet.is_err());
+
+    schema
+        .execute(as_user(
+            r#"mutation { createTask(input: { title: "Water", projectId: 1 }) { id } }"#,
+        ))
+        .await;
+
+    let event = stream.next().await.unwrap();
+    assert_eq!(
+        event.data.into_json().unwrap(),
+        json!({ "taskAdded": { "title": "Water" } })
+    );
+}</code></pre>
+
+<h3 id="ref-ops">Operations to try</h3>
+<p class="label">GraphiQL</p>
+<p>What a client sends to the server above. It also needs a <code>.env</code> file with <code>DATABASE_URL=sqlite:app.db</code> and <code>JWT_SECRET=</code> any long random string.</p>
+<pre><code># Nested read
+{ projects { id name tasks { title done } } }
+
+# One page of a list
+{ tasks(limit: 2, offset: 0) { items { id title } totalCount hasNextPage } }
+
+# Get a token
+mutation { register(input: { username: "agus", password: "password123" }) { token } }
+
+# Write (needs the header:  {"Authorization": "Bearer &lt;token&gt;"} )
+mutation { createTask(input: { title: "Water", projectId: 1 }) { id title project { name } } }
+mutation { updateTask(id: 4, input: { done: true }) { id done } }
+mutation { deleteTask(id: 4) }
+
+# Live updates (run in a second tab, then create a task)
+subscription { taskAdded { title } }</code></pre>
+
+<footer>
+  <p>Next step: try queries interactively in a GraphQL playground (async-graphql ships with GraphiQL), then read the official guide at <a href="https://graphql.org/learn/">graphql.org/learn</a>.</p>
+</footer>
+
+</main>
+</body>
+</html>
