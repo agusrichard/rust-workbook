@@ -1,7 +1,7 @@
-use async_graphql::{ComplexObject, SimpleObject, ID, Result, Context};
-use sqlx::SqlitePool;
+use async_graphql::{ComplexObject, SimpleObject, ID, Result, Context, InputObject};
+use sqlx::{FromRow, SqlitePool};
 
-#[derive(sqlx::FromRow, SimpleObject)]
+#[derive(FromRow, SimpleObject)]
 #[graphql(complex)]
 pub struct Author {
     #[graphql(skip)]
@@ -27,7 +27,7 @@ impl Author {
 
 
 
-#[derive(sqlx::FromRow, SimpleObject)]
+#[derive(FromRow, SimpleObject, Clone)]
 #[graphql(complex)]
 pub struct Book {
     #[graphql(skip)]
@@ -50,4 +50,72 @@ impl Book {
             .bind(self.author_id).fetch_one(pool).await?;
         Ok(author)
     }
+}
+
+#[derive(InputObject)]
+pub struct CreateBookInput {
+    pub title: String,
+    pub year: Option<u16>,
+    pub author_id: ID
+}
+
+#[derive(InputObject)]
+pub struct UpdateBookInput {
+    pub title: Option<String>,
+    pub year: Option<u16>,
+    pub author_id: Option<ID>
+}
+
+
+#[derive(InputObject)]
+pub struct CreateAuthorInput {
+    pub name: String,
+}
+
+#[derive(InputObject)]
+pub struct UpdateAuthorInput {
+    pub name: Option<String>,
+}
+
+#[derive(SimpleObject)]
+pub struct BookPage {
+    pub items: Vec<Book>,
+    pub total_count: i64,
+    pub has_next_page: bool
+}
+
+#[derive(SimpleObject)]
+pub struct AuthorPage {
+    pub items: Vec<Author>,
+    pub total_count: i64,
+    pub has_next_page: bool
+}
+
+#[derive(FromRow, SimpleObject)]
+#[graphql(complex)]
+pub struct User {
+    #[graphql(skip)]
+    pub id: i64,
+    pub username: String,
+    #[graphql(skip)]
+    pub password_hash: String
+}
+
+#[ComplexObject]
+impl User {
+    async fn id(&self) -> ID {
+        self.id.into()
+    }
+}
+
+#[derive(InputObject)]
+pub struct CredentialsInput {
+    pub username: String,
+    pub password: String
+}
+
+#[derive(SimpleObject)]
+pub struct AuthPayload {
+    pub token: String,
+    pub user: User
 }
