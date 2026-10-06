@@ -1,0 +1,44 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT id, title, year, author_id, created_by FROM books WHERE id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "id",
+        "ordinal": 0,
+        "type_info": "Integer"
+      },
+      {
+        "name": "title",
+        "ordinal": 1,
+        "type_info": "Text"
+      },
+      {
+        "name": "year",
+        "ordinal": 2,
+        "type_info": "Integer"
+      },
+      {
+        "name": "author_id",
+        "ordinal": 3,
+        "type_info": "Integer"
+      },
+      {
+        "name": "created_by",
+        "ordinal": 4,
+        "type_info": "Integer"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      false,
+      true
+    ]
+  },
+  "hash": "4d50d16d7abe45b4be948e3a706ec3bebe97980c4cd2f0bb420717f173d99fce"
+}

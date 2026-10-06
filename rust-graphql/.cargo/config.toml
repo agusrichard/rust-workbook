@@ -1,0 +1,6 @@
+# The sqlx query macros check every SQL statement at compile time. With this
+# set they check against the saved descriptions in .sqlx/ instead of a live
+# database, so a build never depends on the state of books.db.
+# After changing any SQL or adding a migration, run ./prepare-sql.sh.
+[env]
+SQLX_OFFLINE = "true"

@@ -1,7 +1,11 @@
-use async_graphql::{ComplexObject, SimpleObject, ID, Result, Context, InputObject};
+use async_graphql::dataloader::DataLoader;
+use async_graphql::{ComplexObject, Context, Error, ID, InputObject, Result, SimpleObject};
 use sqlx::{FromRow, SqlitePool};
 
-#[derive(FromRow, SimpleObject)]
+use crate::loaders::{AuthorLoader, BooksByAuthorLoader};
+use crate::pagination::{self, BookConnection, BookFilter};
+
+#[derive(FromRow, SimpleObject, Clone)]
 #[graphql(complex)]
 pub struct Author {
     #[graphql(skip)]
@@ -15,17 +19,31 @@ impl Author {
         self.id.into()
     }
 
+    // All of the author's books. Batched: one query for every author in the request.
     async fn books(&self, ctx: &Context<'_>) -> Result<Vec<Book>> {
+        let loader = ctx.data::<DataLoader<BooksByAuthorLoader>>()?;
+        let books = loader.load_one(self.id).await?;
+        Ok(books.unwrap_or_default())
+    }
+
+    // The author's books, one page at a time.
+    #[graphql(complexity = "pagination::page_cost(first, last) * child_complexity")]
+    async fn books_connection(
+        &self,
+        ctx: &Context<'_>,
+        after: Option<String>,
+        before: Option<String>,
+        first: Option<i32>,
+        last: Option<i32>,
+    ) -> Result<BookConnection> {
         let pool = ctx.data::<SqlitePool>()?;
-        let books = sqlx::query_as("SELECT * FROM books WHERE author_id = ? ORDER BY id")
-            .bind(self.id)
-            .fetch_all(pool)
-            .await?;
-        Ok(books)
+        let filter = BookFilter {
+            author_id: Some(self.id),
+            title_contains: None,
+        };
+        pagination::book_connection(pool, filter, after, before, first, last).await
     }
 }
-
-
 
 #[derive(FromRow, SimpleObject, Clone)]
 #[graphql(complex)]
@@ -33,9 +51,12 @@ pub struct Book {
     #[graphql(skip)]
     pub id: i64,
     pub title: String,
-    pub year: Option<u16>,
+    pub year: Option<i64>,
     #[graphql(skip)]
-    pub author_id: i64
+    pub author_id: i64,
+    // The user who created the book. None for the seed books.
+    #[graphql(skip)]
+    pub created_by: Option<i64>,
 }
 
 #[ComplexObject]
@@ -44,11 +65,26 @@ impl Book {
         self.id.into()
     }
 
+    // Batched: one query for every book in the request.
     async fn author(&self, ctx: &Context<'_>) -> Result<Author> {
+        let loader = ctx.data::<DataLoader<AuthorLoader>>()?;
+        let author = loader.load_one(self.author_id).await?;
+        author.ok_or_else(|| Error::new(format!("Author {} does not exist", self.author_id)))
+    }
+
+    async fn created_by(&self, ctx: &Context<'_>) -> Result<Option<User>> {
+        let Some(user_id) = self.created_by else {
+            return Ok(None);
+        };
         let pool = ctx.data::<SqlitePool>()?;
-        let author = sqlx::query_as::<_, Author>("SELECT * FROM authors WHERE id = ?")
-            .bind(self.author_id).fetch_one(pool).await?;
-        Ok(author)
+        let user = sqlx::query_as!(
+            User,
+            "SELECT id, username, password_hash FROM users WHERE id = ?",
+            user_id
+        )
+        .fetch_optional(pool)
+        .await?;
+        Ok(user)
     }
 }
 
@@ -56,16 +92,15 @@ impl Book {
 pub struct CreateBookInput {
     pub title: String,
     pub year: Option<u16>,
-    pub author_id: ID
+    pub author_id: ID,
 }
 
 #[derive(InputObject)]
 pub struct UpdateBookInput {
     pub title: Option<String>,
     pub year: Option<u16>,
-    pub author_id: Option<ID>
+    pub author_id: Option<ID>,
 }
-
 
 #[derive(InputObject)]
 pub struct CreateAuthorInput {
@@ -81,14 +116,14 @@ pub struct UpdateAuthorInput {
 pub struct BookPage {
     pub items: Vec<Book>,
     pub total_count: i64,
-    pub has_next_page: bool
+    pub has_next_page: bool,
 }
 
 #[derive(SimpleObject)]
 pub struct AuthorPage {
     pub items: Vec<Author>,
     pub total_count: i64,
-    pub has_next_page: bool
+    pub has_next_page: bool,
 }
 
 #[derive(FromRow, SimpleObject)]
@@ -98,7 +133,7 @@ pub struct User {
     pub id: i64,
     pub username: String,
     #[graphql(skip)]
-    pub password_hash: String
+    pub password_hash: String,
 }
 
 #[ComplexObject]
@@ -111,11 +146,11 @@ impl User {
 #[derive(InputObject)]
 pub struct CredentialsInput {
     pub username: String,
-    pub password: String
+    pub password: String,
 }
 
 #[derive(SimpleObject)]
 pub struct AuthPayload {
     pub token: String,
-    pub user: User
+    pub user: User,
 }

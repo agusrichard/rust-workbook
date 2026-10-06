@@ -1,0 +1,44 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT id, title, year, author_id, created_by FROM books\n                 WHERE (?1 IS NULL OR author_id = ?1)\n                   AND (?2 IS NULL OR instr(lower(title), lower(?2)) > 0)\n                   AND (?3 IS NULL OR id > ?3)\n                   AND (?4 IS NULL OR id < ?4)\n                 ORDER BY id\n                 LIMIT ?5",
+  "describe": {
+    "columns": [
+      {
+        "name": "id",
+        "ordinal": 0,
+        "type_info": "Integer"
+      },
+      {
+        "name": "title",
+        "ordinal": 1,
+        "type_info": "Text"
+      },
+      {
+        "name": "year",
+        "ordinal": 2,
+        "type_info": "Integer"
+      },
+      {
+        "name": "author_id",
+        "ordinal": 3,
+        "type_info": "Integer"
+      },
+      {
+        "name": "created_by",
+        "ordinal": 4,
+        "type_info": "Integer"
+      }
+    ],
+    "parameters": {
+      "Right": 5
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      false,
+      true
+    ]
+  },
+  "hash": "44211a73d2697002a9ae5c779bfe480a64ae75a7ac2f324829176c09eea40b13"
+}
