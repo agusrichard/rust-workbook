@@ -2,9 +2,16 @@
 
 ## How to use this plan
 
-This is a learner-led plan, not an implementation recipe. Complete the tasks in order and do not move forward while a task's verification still fails. When you need help, ask about the smallest failing step and include the exact error, the relevant interface, and what you expected.
+This is a learner-led plan, not an implementation recipe. Complete one task at a time and do not move forward while its verification still fails. When asking for help, focus on the smallest failing step and include the exact error, the relevant interface, and what you expected.
 
-The plan deliberately introduces dependencies, directories, and abstractions **only when they are first needed**. Each task should leave the project running and verifiable. Avoid installing the whole future architecture at the beginning.
+The plan follows an incremental delivery style used in ordinary product work:
+
+1. Establish the smallest required foundation.
+2. Deliver one thin feature through every necessary layer.
+3. Verify that feature from the outside.
+4. Add the next feature only after the current increment works.
+
+Do not add future RPC methods as placeholders. The Protobuf contract, database schema, HTTP API, and dependencies should grow only when the current feature requires them.
 
 ## Target outcome
 
@@ -20,40 +27,42 @@ At the end of the project:
 
 ## Working rules
 
-- Keep each task in a small commit if you are using Git.
-- Add a crate, feature, folder, or abstraction only when the current task uses it.
+- Keep each completed task in a small commit when practical.
+- Add a dependency, feature flag, folder, schema object, or API method only when the current task uses it.
+- Keep every task buildable and independently verifiable.
 - Run formatting and compilation checks after every task.
-- Keep the public HTTP models separate from generated Protobuf types.
-- Prefer a direct design over extra abstraction.
+- Keep public HTTP models separate from generated Protobuf types.
+- Prefer a direct implementation over abstractions needed only by imagined future work.
 - Never commit generated private keys or the SQLite database.
 - Treat notifications as live-only; durable delivery is outside this project.
-- If a task exceeds its timebox, record the blocker before expanding scope.
 
-## Just-in-time dependency map
+## Incremental delivery map
 
-This is a preview, not a list to install immediately.
-
-| First needed in | Dependency or artifact introduced |
+| Task | Working increment delivered |
 |---|---|
-| Task 1 | No new dependency; only the two Rust binaries |
-| Task 2 | Tonic/Protobuf runtime, Protobuf build dependency, `proto/`, `build.rs`, shared library module |
-| Task 3 | Tokio runtime, SQLx/SQLite, `migrations/`, `data/`, Inventory repository module |
-| Task 4 | UUID and timestamp crate |
-| Task 6 | Axum, Serde, JSON, and Tokio networking/time support |
-| Task 7 | Tokio broadcast support and `tokio-stream` |
-| Task 9 | `scripts/` and generated `certs/` |
-| Task 10 | Tonic TLS feature |
-| Task 11 | `tracing`, `tracing-subscriber`, and graceful-shutdown support |
+| 0 | Verified local development baseline |
+| 1 | Two runnable server binaries |
+| 2 | SQLite product catalog with seed data |
+| 3 | Availability works from Checkout to Inventory over gRPC |
+| 4 | Availability is publicly accessible over REST |
+| 5 | Purchases work correctly inside the database boundary |
+| 6 | Purchases work end-to-end through REST and gRPC |
+| 7 | Committed purchases produce an internal gRPC event stream |
+| 8 | Purchase events are publicly observable through SSE |
+| 9 | Development service identities and certificates exist |
+| 10 | All internal gRPC traffic requires mTLS |
+| 11 | The working system gains resilience, tracing, and graceful shutdown |
+| 12 | A clean setup passes the complete acceptance demonstration |
 
 ## Suggested schedule
 
 | Day | Tasks | Approximate focus time |
 |---|---|---:|
-| Completed | Task 0: baseline and tools | 20 minutes |
-| Day 1 | Tasks 1–6: binaries, contract, database, transaction, unary gRPC, REST | 5–6 hours |
-| Day 2 | Tasks 7–12: streaming, SSE, certificates, mTLS, resilience, final verification | 5–6 hours |
+| Completed | Tasks 0–1 | 40 minutes |
+| Day 1 | Tasks 2–6: database, availability, REST, purchase transaction, purchase API | 5–6 hours |
+| Day 2 | Tasks 7–12: streaming, SSE, certificates, mTLS, resilience, acceptance | 5–6 hours |
 
-The timeboxes are guides. Understanding and verifying each boundary matters more than finishing within the estimate.
+The timeboxes are guides. Understanding and verifying each increment matters more than the estimate.
 
 ---
 
@@ -61,11 +70,11 @@ The timeboxes are guides. Understanding and verifying each boundary matters more
 
 **Status:** Completed
 
-**Goal:** Know that the starting project and required local tools work before introducing application complexity.
+**Goal:** Confirm that the starting project and required local tools work.
 
 ### Checklist
 
-- [x] Read `PROJECT_PROPOSAL.md` once from beginning to end.
+- [x] Read `PROJECT_PROPOSAL.md`.
 - [x] Run the starter program and record its behavior.
 - [x] Confirm the Rust toolchain and Cargo are available.
 - [x] Confirm `protoc`, `sqlite3`, and `openssl` are available.
@@ -84,70 +93,35 @@ The timeboxes are guides. Understanding and verifying each boundary matters more
 
 ## Task 1 — Establish two runnable binaries
 
-**Goal:** Give each future server its own executable without adding libraries that are not yet used.
+**Status:** Completed
 
-**Timebox:** 20 minutes
+**Goal:** Give each future server its own executable.
 
 ### Checklist
 
 - [x] Create `src/bin/checkout_api.rs` with a minimal synchronous `main` function.
 - [x] Create `src/bin/inventory_service.rs` with a minimal synchronous `main` function.
 - [x] Make each binary print a distinct startup message.
-- [x] Add no dependencies; this task only establishes Cargo binary targets.
-- [x] Create no infrastructure directories yet.
-- [x] Keep the original `src/main.rs` temporarily, or remove it if you understand how Cargo chooses binaries.
+- [x] Add no dependencies as part of this task.
+- [x] Create no infrastructure directories as part of this task.
+- [x] Decide how to handle the original `src/main.rs` binary.
 - [x] Run the formatter.
-- [x] Inspect `cargo metadata` or Cargo's output and identify all available binary targets.
+- [x] Inspect Cargo's binary targets.
 
-### Verify completion
+### Verified result
 
-- [x] `cargo check --all-targets` succeeds.
-- [x] `cargo run --bin checkout_api` prints the Checkout API message and exits successfully.
-- [x] `cargo run --bin inventory_service` prints the Inventory Service message and exits successfully.
-- [x] You can explain why the project now has multiple binaries.
-- [x] `Cargo.toml` still has no unused future dependencies.
+- [x] `cargo check --all-targets` succeeds at the Task 1 checkpoint.
+- [x] `checkout_api` prints `Checkout API` and exits successfully.
+- [x] `inventory_service` prints `Inventory Service` and exits successfully.
+- [x] The project contains distinct executable targets for the two services.
 
 **Learning checkpoint:** Explain the difference between a Cargo package, a library target, and a binary target.
 
 ---
 
-## Task 2 — Define and generate the gRPC contract
+## Task 2 — Establish the product database
 
-**Goal:** Turn a small Protobuf contract into shared Rust client and server interfaces.
-
-**Timebox:** 60 minutes
-
-### Checklist
-
-- [ ] Add only the Tonic/Protobuf crates needed to compile generated messages and services.
-- [ ] Add `tonic-prost-build` under build dependencies rather than runtime dependencies.
-- [ ] Create the `proto/` directory.
-- [ ] Create `build.rs` for Protobuf generation.
-- [ ] Create `src/lib.rs` or another shared module for generated types.
-- [ ] Create `proto/inventory.proto` with package `inventory.v1`.
-- [ ] Define unary `GetAvailability` and `CreatePurchase`.
-- [ ] Define server-streaming `WatchPurchases`, even though its behavior will be implemented later.
-- [ ] Give every field a stable number and use only fields required by the proposal.
-- [ ] Configure `build.rs` to compile the `.proto` file.
-- [ ] Include the generated module from the shared library target.
-- [ ] Find the generated output under Cargo's build directory and inspect it.
-- [ ] Keep Axum, SQLx, streaming adapters, TLS, and logging out of this task.
-
-### Verify completion
-
-- [ ] `cargo check --all-targets` invokes `protoc` and succeeds.
-- [ ] The generated output contains an Inventory client and an Inventory server trait.
-- [ ] The generated service has two unary methods and one server-streaming method.
-- [ ] Both binaries can import the shared generated module.
-- [ ] You can explain why generated files stay under `target/` rather than being edited manually.
-
-**Learning checkpoint:** Explain how one `.proto` contract can produce both the caller interface and the server interface.
-
----
-
-## Task 3 — Create and seed the SQLite database
-
-**Goal:** Give the Inventory Service durable storage before adding business or network behavior.
+**Goal:** Persist and inspect product stock before introducing any network API.
 
 **Timebox:** 60 minutes
 
@@ -155,274 +129,311 @@ The timeboxes are guides. Understanding and verifying each boundary matters more
 
 - [ ] Add Tokio with only the runtime and macro features needed for async startup.
 - [ ] Add SQLx with Tokio, SQLite, migration, and macro support.
-- [ ] Create `migrations/` for versioned database schema files.
-- [ ] Create `data/` for the ignored local database file.
-- [ ] Create an Inventory repository/database module.
-- [ ] Convert only the Inventory Service entry point to an async Tokio main function.
-- [ ] Write the initial migration for `products` and `purchases`.
-- [ ] Add primary keys, the product foreign key, and stock/quantity constraints.
-- [ ] Create the SQLite pool during Inventory Service startup.
-- [ ] Enable SQLite foreign-key enforcement on connections.
-- [ ] Run embedded migrations during startup.
-- [ ] Seed two or three products with idempotent inserts.
-- [ ] Read the database path from an environment variable with `data/stockguard.db` as the local default.
-- [ ] Use simple startup output or error propagation for now; structured logging comes later.
-- [ ] Keep UUIDs, timestamp handling, Axum, streams, TLS, and tracing out of this task.
+- [ ] Create `migrations/` and `data/` only now that they are needed.
+- [ ] Add a first migration that creates only the `products` table.
+- [ ] Give products an ID, name, and non-negative stock constraint.
+- [ ] Create a small Inventory database/repository module.
+- [ ] Convert only `inventory_service` to an async Tokio entry point.
+- [ ] Read the database location from an environment variable with `data/stockguard.db` as its local default.
+- [ ] Open a small SQLite connection pool and enable foreign-key enforcement.
+- [ ] Run embedded migrations at Inventory startup.
+- [ ] Seed two or three products using idempotent inserts.
+- [ ] Add a repository operation that reads one product by ID.
+- [ ] Keep Protobuf, gRPC behavior, purchases, Axum, streaming, TLS, and tracing out of this increment.
 
 ### Verify completion
 
-- [ ] Starting the Inventory Service creates `data/stockguard.db`.
-- [ ] The `sqlite3` CLI shows both tables and all seeded products.
-- [ ] Restarting the service does not duplicate products or erase data.
-- [ ] SQLite rejects negative stock and non-positive purchase quantities.
-- [ ] `cargo check --all-targets` succeeds.
-- [ ] The Checkout binary still runs without opening the database.
+- [ ] Starting Inventory creates `data/stockguard.db`.
+- [ ] The `sqlite3` CLI shows the `products` table and seeded rows.
+- [ ] Restarting Inventory neither erases nor duplicates products.
+- [ ] SQLite rejects negative stock.
+- [ ] The repository returns a known product and reports an unknown product predictably.
+- [ ] Checkout still runs without opening SQLite.
+- [ ] Formatting, `cargo check --all-targets`, and database-focused tests pass.
 
-**Learning checkpoint:** Explain the difference between a migration, seed data, and ordinary application queries.
+**Learning checkpoint:** Explain the difference between a migration, seed data, and an ordinary repository query.
 
 ---
 
-## Task 4 — Implement and test the purchase transaction
+## Task 3 — Deliver product availability over gRPC
 
-**Goal:** Make the central business rule correct entirely inside the database boundary.
+**Goal:** Complete the first internal feature from Checkout to Inventory using one unary RPC.
 
-**Timebox:** 75 minutes
+**Timebox:** 90 minutes
 
 ### Checklist
 
-- [ ] Add a UUID crate with random UUID generation enabled.
-- [ ] Add one timestamp crate with UTC RFC 3339 formatting support.
-- [ ] Add a repository operation for reading product availability.
-- [ ] Define errors for unknown product, zero quantity, insufficient stock, and unexpected storage failure.
-- [ ] Reject zero quantity before opening the transaction.
-- [ ] Begin one SQLite transaction for the entire purchase.
-- [ ] Use a conditional stock update so SQLite prevents stock from becoming negative.
-- [ ] Distinguish unknown product from insufficient stock when no row is updated.
-- [ ] Generate the purchase ID and UTC timestamp.
-- [ ] Insert the purchase record inside the same transaction.
-- [ ] Commit before returning success.
-- [ ] Write repository tests for every expected outcome.
-- [ ] Add a test where concurrent purchases compete for limited stock.
-- [ ] Keep this behavior behind the repository boundary; do not expose it over gRPC yet.
+- [ ] Add Tonic, Prost, and the Tonic Prost runtime required by generated code.
+- [ ] Add `tonic-prost-build` under build dependencies.
+- [ ] Create or finish `proto/inventory.proto` with package `inventory.v1`.
+- [ ] Define only the `GetAvailability` RPC and its request and response messages.
+- [ ] Do not define `CreatePurchase` or `WatchPurchases` yet.
+- [ ] Create or finish root-level `build.rs` and compile the `.proto` file.
+- [ ] Create or finish `src/lib.rs` as the shared generated-contract module.
+- [ ] Inspect the generated client, server trait, request, and response types.
+- [ ] Implement `GetAvailability` by calling the Task 2 repository operation.
+- [ ] Map an unknown product to gRPC `NOT_FOUND`.
+- [ ] Start Inventory's Tonic server on port `50051` using temporary plaintext transport.
+- [ ] Convert Checkout to an async entry point.
+- [ ] Make Checkout create a Tonic client, request one product, print the result, and exit.
+- [ ] Allow the smoke-test product ID to be changed without recompiling, using a simple argument or environment value.
+- [ ] Keep Axum, purchase behavior, streaming, TLS, and tracing out of this increment.
 
 ### Verify completion
 
-- [ ] A successful test decreases stock and creates exactly one purchase row.
-- [ ] Each rejected purchase leaves both tables unchanged.
-- [ ] Concurrent purchases never produce negative stock.
-- [ ] Starting stock equals successful purchased quantity plus remaining stock.
-- [ ] Returned IDs are valid UUIDs and timestamps are valid UTC RFC 3339 values.
-- [ ] All repository tests pass repeatedly.
+- [ ] `cargo check --all-targets` invokes `protoc` and succeeds.
+- [ ] Inventory remains running on port `50051`.
+- [ ] Running Checkout for a seeded ID prints the product and available quantity.
+- [ ] Running Checkout for an unknown ID reports `NOT_FOUND` without crashing either process.
+- [ ] The response is sourced from SQLite rather than hard-coded in the gRPC service.
+- [ ] The generated Inventory service contains exactly one RPC.
+- [ ] Formatting and focused tests pass.
 
-**Learning checkpoint:** Describe the race condition caused by reading, checking, and updating stock in separate transactions.
+**Learning checkpoint:** Trace the availability request through the generated client, network transport, generated server, repository, and back.
 
 ---
 
-## Task 5 — Expose the unary Inventory gRPC API
+## Task 4 — Expose availability through public REST
 
-**Goal:** Put the already-tested database behavior behind a network boundary.
+**Goal:** Turn the internal availability call into the first public API endpoint.
 
 **Timebox:** 60 minutes
 
 ### Checklist
 
-- [ ] Create the Inventory gRPC service implementation module.
-- [ ] Enable Tonic transport/server support if it is not already enabled.
-- [ ] Convert domain results into Protobuf responses.
-- [ ] Map domain errors to the agreed gRPC status codes.
-- [ ] Implement `GetAvailability` using the repository.
-- [ ] Implement `CreatePurchase` using the transaction operation.
-- [ ] Keep status descriptions useful but free of SQL and internal paths.
-- [ ] Start the Tonic server on port `50051` using temporary plaintext transport.
-- [ ] Test through a schema-aware gRPC client or focused service-level tests.
-- [ ] Leave `WatchPurchases` explicitly unimplemented until Task 7.
-- [ ] Add no application-wide logging or TLS dependency yet.
+- [ ] Add Axum and Serde with only the features required for HTTP and JSON.
+- [ ] Enable the Tokio networking and time features needed by the HTTP server and RPC deadline.
+- [ ] Define a public availability response type separate from the Protobuf response.
+- [ ] Change Checkout from a one-shot smoke client into a long-running Axum server on port `8080`.
+- [ ] Create the Tonic channel during Checkout startup and share the client through application state.
+- [ ] Implement only `GET /products/{product_id}/availability`.
+- [ ] Add a short deadline to the internal unary call.
+- [ ] Map gRPC `NOT_FOUND` to HTTP 404.
+- [ ] Map Inventory unavailability or deadline failure to a controlled 503 or 504.
+- [ ] Return a consistent JSON error shape.
+- [ ] Remove the temporary startup availability request once the HTTP handler replaces it.
+- [ ] Keep purchases, SSE, TLS, and structured tracing out of this increment.
 
 ### Verify completion
 
-- [ ] A gRPC availability request returns seeded SQLite data.
-- [ ] A successful gRPC purchase persists after the server restarts.
-- [ ] Unknown product returns `NOT_FOUND`.
-- [ ] Zero quantity returns `INVALID_ARGUMENT`.
-- [ ] Insufficient stock returns `FAILED_PRECONDITION`.
-- [ ] A failed request creates no purchase row.
+- [ ] A public request for a seeded product returns HTTP 200 with SQLite-backed JSON.
+- [ ] An unknown product returns HTTP 404 with safe JSON.
+- [ ] Stopping Inventory causes a controlled 503 or 504 rather than a Checkout crash.
+- [ ] Restarting Inventory allows subsequent availability requests to succeed.
+- [ ] Checkout never opens SQLite directly.
+- [ ] Formatting, compilation, and focused tests pass.
 
-**Temporary condition:** Plaintext gRPC is acceptable only until Task 10.
-
-**Learning checkpoint:** Explain why database errors should become domain errors before becoming gRPC statuses.
+**Learning checkpoint:** Explain why the public JSON model should not be the generated Protobuf model.
 
 ---
 
-## Task 6 — Build the public REST-to-gRPC path
+## Task 5 — Implement purchase persistence and business rules
 
-**Goal:** Complete one vertical slice from public HTTP through gRPC to SQLite and back.
+**Goal:** Make purchasing correct inside the database boundary before exposing another API.
+
+**Timebox:** 90 minutes
+
+### Checklist
+
+- [ ] Add a second migration that creates the `purchases` table without changing the first migration.
+- [ ] Add the product foreign key and a positive-quantity constraint.
+- [ ] Add a UUID crate with random UUID generation enabled.
+- [ ] Add one timestamp crate with UTC RFC 3339 formatting support.
+- [ ] Define domain results and errors without depending on HTTP or gRPC types.
+- [ ] Reject zero quantity before opening a transaction.
+- [ ] Start one SQLite transaction for the purchase.
+- [ ] Decrease stock with a conditional update that requires sufficient stock.
+- [ ] Distinguish an unknown product from insufficient stock when no row is updated.
+- [ ] Insert the purchase ID, product ID, quantity, and timestamp within the same transaction.
+- [ ] Commit before returning success.
+- [ ] Add tests for success, unknown product, zero quantity, and insufficient stock.
+- [ ] Add a test where concurrent purchases compete for limited stock.
+- [ ] Keep the Protobuf and HTTP contracts unchanged in this increment.
+
+### Verify completion
+
+- [ ] Migrating an existing Task 4 database preserves its products and adds `purchases`.
+- [ ] A successful repository call decreases stock and inserts exactly one purchase.
+- [ ] Every rejected purchase leaves both tables unchanged.
+- [ ] Concurrent attempts never make stock negative.
+- [ ] Starting stock equals successful purchased quantity plus remaining stock.
+- [ ] Returned purchase IDs and timestamps have the expected formats.
+- [ ] All database and business tests pass repeatedly.
+
+**Learning checkpoint:** Describe the race condition caused by checking and updating stock in separate transactions.
+
+---
+
+## Task 6 — Deliver purchases through gRPC and REST
+
+**Goal:** Extend the working application with an end-to-end purchase feature.
 
 **Timebox:** 75 minutes
 
 ### Checklist
 
-- [ ] Add Axum.
-- [ ] Add Serde with derive support and JSON serialization.
-- [ ] Enable the Tokio networking and time features needed by the HTTP server and deadlines.
-- [ ] Create Checkout HTTP model, handler, and error-mapping modules.
-- [ ] Convert the Checkout binary to an async server.
-- [ ] Create its Tonic channel during startup and share the client through Axum state.
-- [ ] Define public HTTP request/response structs separately from Protobuf types.
-- [ ] Implement `GET /products/{product_id}/availability`.
-- [ ] Implement `POST /purchases`.
-- [ ] Validate obvious HTTP input before calling gRPC.
-- [ ] Map expected gRPC statuses to the HTTP statuses in the proposal.
-- [ ] Return one consistent, safe JSON error shape.
-- [ ] Add a short deadline to unary gRPC requests.
-- [ ] Use basic error output for now; structured tracing comes in Task 11.
-- [ ] Keep SSE, TLS, and tracing out of this task.
+- [ ] Extend the Protobuf service with `CreatePurchase` only now.
+- [ ] Add only the request and response fields needed by the purchase feature.
+- [ ] Rebuild and inspect how the generated client and server interfaces changed.
+- [ ] Implement `CreatePurchase` by calling the tested Task 5 transaction.
+- [ ] Map unknown product, zero quantity, and insufficient stock to appropriate gRPC statuses.
+- [ ] Define separate public HTTP purchase request and response models.
+- [ ] Implement `POST /purchases` in Checkout.
+- [ ] Validate obvious public input before making the internal call.
+- [ ] Map expected gRPC statuses to HTTP 404, 400, and 409.
+- [ ] Apply the existing unary deadline policy.
+- [ ] Keep streaming, SSE, TLS, and structured tracing out of this increment.
 
 ### Verify completion
 
-- [ ] An HTTP availability request returns Inventory-owned data.
-- [ ] A successful HTTP purchase returns `201 Created` and changes SQLite.
+- [ ] A valid HTTP purchase returns 201 and a purchase ID.
+- [ ] SQLite shows both the new purchase and reduced product stock.
+- [ ] The availability endpoint reports the updated quantity.
 - [ ] Unknown, zero-quantity, and insufficient-stock requests return 404, 400, and 409.
-- [ ] Stopping the Inventory Service produces a controlled 503 or 504 instead of crashing Checkout.
-- [ ] The Checkout API never opens SQLite directly.
-- [ ] You can trace one request across JSON, Protobuf, SQLite, Protobuf, and JSON.
+- [ ] Rejected HTTP requests make no database changes.
+- [ ] Two competing HTTP purchases cannot oversell the product.
+- [ ] The generated Inventory service now contains exactly two unary RPCs.
+- [ ] Formatting, compilation, and feature tests pass.
 
 ### Day 1 milestone
 
-Stop here and demonstrate the complete unary path. Commit or record a checkpoint before adding streaming.
+Demonstrate availability and purchasing through the public REST API. Commit or record a checkpoint before introducing streaming.
 
 ---
 
-## Task 7 — Publish committed purchases over gRPC streaming
+## Task 7 — Deliver committed purchase events over gRPC streaming
 
-**Goal:** Implement the internal live event stream without involving the public SSE endpoint yet.
+**Goal:** Add the internal notification feature only after purchases work end-to-end.
 
-**Timebox:** 60 minutes
+**Timebox:** 75 minutes
 
 ### Checklist
 
-- [ ] Enable Tokio synchronization/broadcast support.
-- [ ] Add `tokio-stream` with broadcast-wrapper support.
-- [ ] Create an Inventory notification module.
-- [ ] Add a broadcast channel owned by the Inventory Service.
+- [ ] Extend the Protobuf service with `WatchPurchases` only now.
+- [ ] Add `WatchPurchasesRequest` and `PurchaseEvent` messages.
+- [ ] Confirm the generated method is server-streaming.
+- [ ] Enable Tokio broadcast support.
+- [ ] Add `tokio-stream` with the feature needed to wrap a broadcast receiver.
+- [ ] Create a broadcast channel owned by Inventory.
 - [ ] Make each `WatchPurchases` call subscribe to that channel.
-- [ ] Adapt the receiver to the stream item type required by Tonic.
-- [ ] Publish `PurchaseEvent` only after the SQLite commit succeeds.
+- [ ] Adapt the receiver to Tonic's expected stream item type.
+- [ ] Publish an event only after the purchase transaction commits.
 - [ ] Handle closed and lagged receivers deliberately.
-- [ ] Ensure a disconnected gRPC client releases its receiver.
-- [ ] Keep the stream live-only; do not replay database history.
+- [ ] Start one Checkout background task that subscribes to the gRPC stream.
+- [ ] Temporarily print received events so this internal increment is observable.
+- [ ] Keep the public HTTP API unchanged in this increment.
 
 ### Verify completion
 
-- [ ] A connected gRPC subscriber receives one event for one successful purchase.
+- [ ] Checkout establishes the stream while continuing to serve REST requests.
+- [ ] One successful purchase produces one printed event with matching data.
 - [ ] A rejected or rolled-back purchase produces no event.
 - [ ] Two successful purchases produce two events.
-- [ ] Disconnecting the subscriber does not affect purchases or crash Inventory.
-- [ ] A new subscriber receives future events but no historical events.
+- [ ] Disconnecting Checkout does not stop purchase processing or crash Inventory.
+- [ ] A later subscriber receives future events but no historical events.
+- [ ] The generated Inventory service now contains two unary RPCs and one server-streaming RPC.
 
-**Learning checkpoint:** Explain why an event sent before commit could lie to its consumers.
+**Learning checkpoint:** Explain why publishing an event before the database commit could mislead consumers.
 
 ---
 
-## Task 8 — Bridge gRPC events to public SSE
+## Task 8 — Expose purchase notifications through SSE
 
-**Goal:** Let public clients observe the internal purchase stream using ordinary HTTP.
+**Goal:** Replace the temporary event output with a useful public notification stream.
 
 **Timebox:** 60 minutes
 
 ### Checklist
 
-- [ ] Create a Checkout notification module.
-- [ ] Add an Axum SSE route without a new crate unless the chosen approach genuinely requires one.
-- [ ] Start a Checkout background task that calls `WatchPurchases`.
-- [ ] Read events without blocking REST request handling.
-- [ ] Forward received events into a Checkout-owned broadcast channel.
-- [ ] Implement `GET /notifications/purchases` as SSE.
-- [ ] Use a stable SSE event name such as `purchase.completed`.
-- [ ] Serialize a public event model rather than the Protobuf type.
+- [ ] Add direct JSON serialization support only if the SSE implementation needs it.
+- [ ] Define a public purchase-event type separate from the Protobuf event.
+- [ ] Add a Checkout-owned broadcast channel for connected HTTP clients.
+- [ ] Forward events from the existing gRPC subscriber into the local channel instead of printing them.
+- [ ] Implement `GET /notifications/purchases` using Axum SSE.
+- [ ] Use a stable event name such as `purchase.completed`.
 - [ ] Add an SSE keep-alive.
-- [ ] Release each local receiver when its HTTP client disconnects.
+- [ ] Release each receiver when its HTTP client disconnects.
+- [ ] Keep notifications live-only; do not add database replay or a message broker.
 
 ### Verify completion
 
-- [ ] An SSE client remains connected while normal REST requests still work.
+- [ ] An SSE client remains connected while ordinary REST requests still work.
 - [ ] A successful purchase produces one matching SSE event.
-- [ ] The event matches the purchase ID, product ID, quantity, and timestamp returned by REST.
+- [ ] The event matches the purchase response's ID, product, quantity, and timestamp.
 - [ ] Multiple SSE clients receive the same new event.
 - [ ] Closing one SSE client does not affect the others.
 - [ ] A rejected purchase produces no SSE event.
+- [ ] A newly connected client does not receive historical purchases.
 
-**Learning checkpoint:** Explain the two fan-out boundaries: Inventory-to-gRPC and Checkout-to-SSE.
+**Learning checkpoint:** Explain the Inventory-to-gRPC and Checkout-to-SSE fan-out boundaries.
 
 ---
 
-## Task 9 — Generate and inspect development certificates
+## Task 9 — Generate development service identities
 
-**Goal:** Create the identities needed for mTLS before changing the servers' transport configuration.
+**Goal:** Create and understand the certificates needed before changing transport security.
 
 **Timebox:** 45 minutes
 
 ### Checklist
 
-- [ ] Create `scripts/` for the repeatable certificate-generation script.
-- [ ] Generate certificate artifacts under the ignored `certs/` directory.
-- [ ] Add no Rust dependency in this task.
-- [ ] Create a repeatable OpenSSL script for one development CA.
-- [ ] Generate a server certificate and key for the Inventory Service.
+- [ ] Create `scripts/` only now that certificate automation is needed.
+- [ ] Write a repeatable OpenSSL script for one development CA.
+- [ ] Generate artifacts under the ignored `certs/` directory.
+- [ ] Generate an Inventory server certificate and private key signed by the CA.
 - [ ] Put the chosen Inventory service name in the server certificate SAN.
-- [ ] Generate a distinct client certificate and key for Checkout.
-- [ ] Choose filenames that clearly distinguish CA, server, and client material.
+- [ ] Generate a distinct Checkout client certificate and key signed by the CA.
 - [ ] Inspect issuer, subject, validity, key usage, and SAN.
-- [ ] Confirm the generated directory and all keys remain ignored by Git.
-- [ ] Document that these are local development credentials.
+- [ ] Confirm generated certificates and keys remain ignored by Git.
+- [ ] Document that these identities are local development credentials.
+- [ ] Add no Rust dependency or TLS configuration in this increment.
 
 ### Verify completion
 
 - [ ] OpenSSL verifies both leaf certificates against the CA.
 - [ ] The server certificate contains the exact domain Tonic will verify.
-- [ ] The client and server use distinct identities and keys.
-- [ ] Regenerating from an empty `certs/` directory succeeds.
-- [ ] `git status` shows neither certificates nor private keys.
+- [ ] Client and server certificates use distinct identities and private keys.
+- [ ] Running the script from a clean `certs/` directory recreates every artifact.
+- [ ] `git status` lists no generated certificate or private key.
 
-**Learning checkpoint:** Explain the separate jobs of a CA certificate, server identity, and client identity.
+**Learning checkpoint:** Explain the separate roles of a CA certificate, server identity, and client identity.
 
 ---
 
-## Task 10 — Require mTLS for internal gRPC
+## Task 10 — Require mTLS for every internal call
 
-**Goal:** Replace the temporary plaintext boundary with mutually authenticated transport.
+**Goal:** Secure the already-working unary and streaming gRPC traffic.
 
 **Timebox:** 75 minutes
 
 ### Checklist
 
-- [ ] Enable Tonic's TLS feature only now.
-- [ ] Add an Inventory server TLS configuration boundary.
-- [ ] Add a Checkout client TLS configuration boundary.
-- [ ] Configure Inventory with its server certificate and key.
+- [ ] Enable the chosen Tonic TLS backend only now.
+- [ ] Configure Inventory with its server certificate and private key.
 - [ ] Configure Inventory to trust the development CA for client identities.
 - [ ] Configure Checkout to trust the CA for the Inventory server.
-- [ ] Configure Checkout with its client certificate and key.
-- [ ] Set the expected domain to match the server certificate SAN.
-- [ ] Use secured channels for both unary and streaming calls.
+- [ ] Configure Checkout with its client certificate and private key.
+- [ ] Set the expected server domain to match the certificate SAN.
+- [ ] Reuse the secure channel for availability, purchases, and the event subscription.
 - [ ] Remove or disable plaintext gRPC.
-- [ ] Return safe HTTP failures while keeping TLS detail internal.
+- [ ] Keep detailed TLS errors internal while returning safe public failures.
 
 ### Verify completion
 
-- [ ] Availability, purchases, and notifications work with trusted certificates.
+- [ ] Availability, purchasing, and SSE notifications work with trusted certificates.
 - [ ] Omitting the Checkout client identity fails.
 - [ ] A client certificate signed by another CA fails.
 - [ ] Trusting the wrong server CA fails.
 - [ ] Using the wrong server domain fails hostname verification.
-- [ ] No option disables verification to make a test pass.
+- [ ] No configuration disables certificate verification to make a test pass.
 
-**Learning checkpoint:** State which side proves which identity during the mTLS handshake.
+**Learning checkpoint:** State which identity each side proves during the mTLS handshake.
 
 ---
 
 ## Task 11 — Add resilience, structured tracing, and shutdown
 
-**Goal:** Add operational behavior after the functional system is already understandable.
+**Goal:** Add operational behavior after all core features work.
 
 **Timebox:** 60 minutes
 
@@ -431,28 +442,27 @@ Stop here and demonstrate the complete unary path. Commit or record a checkpoint
 - [ ] Add `tracing`.
 - [ ] Add `tracing-subscriber` with formatting and environment-filter support.
 - [ ] Enable Tokio signal support for graceful shutdown.
-- [ ] Add an HTTP tracing layer only if you choose to use one.
 - [ ] Initialize a tracing subscriber in both binaries.
 - [ ] Replace temporary prints with appropriately leveled structured events.
 - [ ] Include purchase and product IDs where useful.
 - [ ] Detect when Checkout's gRPC subscription ends or fails.
 - [ ] Reconnect using a small bounded backoff rather than a tight loop.
-- [ ] Keep the unary deadline separate from the long-lived stream lifetime.
+- [ ] Keep unary deadlines separate from the long-lived stream lifetime.
 - [ ] Log connection, disconnection, retry, lag, success, and rejection.
-- [ ] Avoid logging keys, certificate contents, or raw internal errors to public clients.
-- [ ] Add graceful shutdown for servers and background tasks.
+- [ ] Avoid logging private keys, certificate contents, or unsafe public error details.
+- [ ] Add graceful shutdown for both servers and Checkout's background task.
 
 ### Verify completion
 
 - [ ] Log verbosity changes when `RUST_LOG` changes.
-- [ ] Stopping Inventory produces controlled stream-failure and retry logs without rapid spam.
+- [ ] Stopping Inventory produces controlled failure and retry logs without rapid spam.
 - [ ] Restarting Inventory causes Checkout to reconnect.
 - [ ] A purchase after reconnection reaches the SSE client.
 - [ ] REST calls during downtime return controlled errors.
-- [ ] Shutdown stops accepting new work and exits without a panic.
-- [ ] Existing SQLite data survives every restart.
+- [ ] Shutdown stops accepting work and exits without panic.
+- [ ] SQLite data survives every restart.
 
-**Learning checkpoint:** Explain why unary calls need deadlines while a deliberate subscription should not have the same lifetime limit.
+**Learning checkpoint:** Explain why unary calls need deadlines while a deliberate subscription should not share the same lifetime limit.
 
 ---
 
@@ -465,8 +475,8 @@ Stop here and demonstrate the complete unary path. Commit or record a checkpoint
 ### Checklist
 
 - [ ] Add no production dependency unless verification exposes a genuine gap.
-- [ ] Document required tools and the order of setup operations.
-- [ ] Document how to generate certificates and create the database.
+- [ ] Document required tools and setup order.
+- [ ] Document database creation and certificate generation.
 - [ ] Document how to start each server in a separate terminal.
 - [ ] Add example availability, purchase, and SSE requests.
 - [ ] State that notifications are live-only.
@@ -478,21 +488,21 @@ Stop here and demonstrate the complete unary path. Commit or record a checkpoint
 
 ### Verify completion
 
-- [ ] A clean setup produces seeded products without manual database editing.
-- [ ] Public clients need no knowledge of the gRPC schema.
+- [ ] A clean setup creates and seeds the product database without manual editing.
+- [ ] Public clients require no knowledge of the gRPC schema.
 - [ ] A purchase atomically updates SQLite and returns the expected response.
 - [ ] A committed purchase appears once on an already-connected SSE client.
 - [ ] Rejected purchases neither alter data nor emit events.
 - [ ] All internal calls use mTLS and reject untrusted identities.
 - [ ] Formatting, compilation, and tests pass.
-- [ ] Following your documentation reproduces the demonstration.
+- [ ] Following the documentation reproduces the complete demonstration.
 
 ### Final explanation exercise
 
 Without looking at the code, explain:
 
 1. Which server owns each public and internal API.
-2. How Protobuf becomes Rust client and server interfaces.
+2. How the Protobuf contract becomes Rust client and server interfaces.
 3. How the SQLite transaction prevents overselling.
 4. Why notifications are emitted only after commit.
 5. How one event travels from gRPC streaming to SSE.
