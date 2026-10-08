@@ -127,29 +127,29 @@ The timeboxes are guides. Understanding and verifying each increment matters mor
 
 ### Checklist
 
-- [ ] Add Tokio with only the runtime and macro features needed for async startup.
-- [ ] Add SQLx with Tokio, SQLite, migration, and macro support.
-- [ ] Create `migrations/` and `data/` only now that they are needed.
-- [ ] Add a first migration that creates only the `products` table.
-- [ ] Give products an ID, name, and non-negative stock constraint.
-- [ ] Create a small Inventory database/repository module.
-- [ ] Convert only `inventory_service` to an async Tokio entry point.
-- [ ] Read the database location from an environment variable with `data/stockguard.db` as its local default.
-- [ ] Open a small SQLite connection pool and enable foreign-key enforcement.
-- [ ] Run embedded migrations at Inventory startup.
-- [ ] Seed two or three products using idempotent inserts.
-- [ ] Add a repository operation that reads one product by ID.
-- [ ] Keep Protobuf, gRPC behavior, purchases, Axum, streaming, TLS, and tracing out of this increment.
+- [x] Add Tokio with only the runtime and macro features needed for async startup.
+- [x] Add SQLx with Tokio, SQLite, migration, and macro support.
+- [x] Create `migrations/` and `data/` only now that they are needed.
+- [x] Add a first migration that creates only the `products` table.
+- [x] Give products an ID, name, and non-negative stock constraint.
+- [x] Create a small Inventory database/repository module.
+- [x] Convert only `inventory_service` to an async Tokio entry point.
+- [x] Read the database location from an environment variable with `data/stockguard.db` as its local default.
+- [x] Open a small SQLite connection pool and enable foreign-key enforcement.
+- [x] Run embedded migrations at Inventory startup.
+- [x] Seed two or three products using idempotent inserts.
+- [x] Add a repository operation that reads one product by ID.
+- [x] Keep Protobuf, gRPC behavior, purchases, Axum, streaming, TLS, and tracing out of this increment.
 
 ### Verify completion
 
-- [ ] Starting Inventory creates `data/stockguard.db`.
-- [ ] The `sqlite3` CLI shows the `products` table and seeded rows.
-- [ ] Restarting Inventory neither erases nor duplicates products.
-- [ ] SQLite rejects negative stock.
-- [ ] The repository returns a known product and reports an unknown product predictably.
-- [ ] Checkout still runs without opening SQLite.
-- [ ] Formatting, `cargo check --all-targets`, and database-focused tests pass.
+- [x] Starting Inventory creates `data/stockguard.db`.
+- [x] The `sqlite3` CLI shows the `products` table and seeded rows.
+- [x] Restarting Inventory neither erases nor duplicates products.
+- [x] SQLite rejects negative stock.
+- [x] The repository returns a known product and reports an unknown product predictably.
+- [x] Checkout still runs without opening SQLite.
+- [x] Formatting, `cargo check --all-targets`, and database-focused tests pass.
 
 **Learning checkpoint:** Explain the difference between a migration, seed data, and an ordinary repository query.
 

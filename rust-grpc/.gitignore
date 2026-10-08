@@ -4,3 +4,4 @@ data/
 *.db
 *.key
 *.key.pem
+.env
