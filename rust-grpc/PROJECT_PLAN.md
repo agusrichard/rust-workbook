@@ -163,21 +163,21 @@ The timeboxes are guides. Understanding and verifying each increment matters mor
 
 ### Checklist
 
-- [ ] Add Tonic, Prost, and the Tonic Prost runtime required by generated code.
-- [ ] Add `tonic-prost-build` under build dependencies.
-- [ ] Create or finish `proto/inventory.proto` with package `inventory.v1`.
-- [ ] Define only the `GetAvailability` RPC and its request and response messages.
-- [ ] Do not define `CreatePurchase` or `WatchPurchases` yet.
-- [ ] Create or finish root-level `build.rs` and compile the `.proto` file.
-- [ ] Create or finish `src/lib.rs` as the shared generated-contract module.
-- [ ] Inspect the generated client, server trait, request, and response types.
-- [ ] Implement `GetAvailability` by calling the Task 2 repository operation.
-- [ ] Map an unknown product to gRPC `NOT_FOUND`.
-- [ ] Start Inventory's Tonic server on port `50051` using temporary plaintext transport.
-- [ ] Convert Checkout to an async entry point.
-- [ ] Make Checkout create a Tonic client, request one product, print the result, and exit.
-- [ ] Allow the smoke-test product ID to be changed without recompiling, using a simple argument or environment value.
-- [ ] Keep Axum, purchase behavior, streaming, TLS, and tracing out of this increment.
+- [x] Add Tonic, Prost, and the Tonic Prost runtime required by generated code.
+- [x] Add `tonic-prost-build` under build dependencies.
+- [x] Create or finish `proto/inventory.proto` with package `inventory.v1`.
+- [x] Define only the `GetAvailability` RPC and its request and response messages.
+- [x] Do not define `CreatePurchase` or `WatchPurchases` yet.
+- [x] Create or finish root-level `build.rs` and compile the `.proto` file.
+- [x] Create or finish `src/lib.rs` as the shared generated-contract module.
+- [x] Inspect the generated client, server trait, request, and response types.
+- [x] Implement `GetAvailability` by calling the Task 2 repository operation.
+- [x] Map an unknown product to gRPC `NOT_FOUND`.
+- [x] Start Inventory's Tonic server on port `50051` using temporary plaintext transport.
+- [x] Convert Checkout to an async entry point.
+- [x] Make Checkout create a Tonic client, request one product, print the result, and exit.
+- [x] Allow the smoke-test product ID to be changed without recompiling, using a simple argument or environment value.
+- [x] Keep Axum, purchase behavior, streaming, TLS, and tracing out of this increment.
 
 ### Verify completion
 

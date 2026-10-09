@@ -7,26 +7,26 @@ pub struct Product {
     pub stock: i64,
 }
 
-pub struct ProductRepository<'a> {
-    pool: &'a SqlitePool,
+pub struct ProductRepository {
+    pool: SqlitePool,
 }
 
-impl<'a> ProductRepository<'a> {
-    pub fn new(pool: &'a SqlitePool) -> Self {
+impl ProductRepository {
+    pub fn new(pool: SqlitePool) -> Self {
         ProductRepository { pool }
     }
 
     pub async fn get_by_id(&self, id: i64) -> Result<Option<Product>, sqlx::Error> {
         let result = sqlx::query_as::<_, Product>("SELECT * FROM products WHERE id = ?")
             .bind(id)
-            .fetch_optional(self.pool)
+            .fetch_optional(&self.pool)
             .await?;
         Ok(result)
     }
 
     pub async fn get_all(&self) -> Result<Vec<Product>, sqlx::Error> {
         let result = sqlx::query_as::<_, Product>("SELECT * FROM products ORDER BY id")
-            .fetch_all(self.pool)
+            .fetch_all(&self.pool)
             .await?;
         Ok(result)
     }
@@ -38,7 +38,7 @@ mod tests {
 
     #[sqlx::test]
     async fn get_by_id_returns_existing_product(pool: SqlitePool) -> Result<()> {
-        let repository = ProductRepository::new(&pool);
+        let repository = ProductRepository::new(pool.clone());
         let product = repository.get_by_id(1).await?;
         assert!(product.is_some());
 
@@ -52,9 +52,19 @@ mod tests {
 
     #[sqlx::test]
     async fn get_by_id_returns_none_for_unkown_product(pool: SqlitePool) -> Result<()> {
-        let repository = ProductRepository::new(&pool);
+        let repository = ProductRepository::new(pool.clone());
         let product = repository.get_by_id(99).await?;
         assert!(product.is_none());
+
+        Ok(())
+    }
+
+    #[sqlx::test]
+    async fn get_all_returns_all_products(pool: SqlitePool) -> Result<()> {
+        let repository = ProductRepository::new(pool.clone());
+        let products = repository.get_all().await?;
+        assert!(!products.is_empty());
+        assert_eq!(products.len(), 2);
 
         Ok(())
     }

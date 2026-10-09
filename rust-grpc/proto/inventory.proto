@@ -1,0 +1,19 @@
+syntax = "proto3";
+
+package inventory.v1;
+
+service Inventory {
+  rpc GetAvailability(GetAvailabilityRequest)
+    returns (GetAvailabilityResponse);
+
+}
+
+message GetAvailabilityRequest {
+  int64 product_id = 1;
+}
+
+message GetAvailabilityResponse {
+  int64 product_id = 1;
+  string name = 2;
+  int64 available_quantity = 3;
+}
