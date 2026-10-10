@@ -181,13 +181,13 @@ The timeboxes are guides. Understanding and verifying each increment matters mor
 
 ### Verify completion
 
-- [ ] `cargo check --all-targets` invokes `protoc` and succeeds.
-- [ ] Inventory remains running on port `50051`.
-- [ ] Running Checkout for a seeded ID prints the product and available quantity.
-- [ ] Running Checkout for an unknown ID reports `NOT_FOUND` without crashing either process.
-- [ ] The response is sourced from SQLite rather than hard-coded in the gRPC service.
-- [ ] The generated Inventory service contains exactly one RPC.
-- [ ] Formatting and focused tests pass.
+- [x] `cargo check --all-targets` invokes `protoc` and succeeds.
+- [x] Inventory remains running on port `50051`.
+- [x] Running Checkout for a seeded ID prints the product and available quantity.
+- [x] Running Checkout for an unknown ID reports `NOT_FOUND` without crashing either process.
+- [x] The response is sourced from SQLite rather than hard-coded in the gRPC service.
+- [x] The generated Inventory service contains exactly one RPC.
+- [x] Formatting and focused tests pass.
 
 **Learning checkpoint:** Trace the availability request through the generated client, network transport, generated server, repository, and back.
 

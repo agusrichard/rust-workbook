@@ -61,7 +61,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let address = "[::1]:50051".parse()?;
     let service = InventoryService::new(pool);
-    println!("Inventory server listening on {address}");
+    println!("🚀 Inventory Server successfully running on {address}");
     Server::builder()
         .add_service(InventoryServer::new(service))
         .serve(address)
