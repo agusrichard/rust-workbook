@@ -210,27 +210,27 @@ The timeboxes are guides. Understanding and verifying each increment matters mor
 
 ### Checklist
 
-- [ ] Add Axum and Serde with only the features required for HTTP and JSON.
-- [ ] Enable the Tokio networking and time features needed by the HTTP server and RPC deadline.
-- [ ] Define a public `ProductResponse` type separate from the Protobuf response.
-- [ ] Change Checkout from a one-shot smoke client into a long-running Axum server on port `8080`.
-- [ ] Create the Tonic channel during Checkout startup and share the client through application state.
-- [ ] Implement only `GET /products/{product_id}`.
-- [ ] Add a short deadline to the internal unary call.
-- [ ] Map gRPC `NOT_FOUND` to HTTP 404.
-- [ ] Map Inventory unavailability or deadline failure to a controlled 503 or 504.
-- [ ] Return a consistent JSON error shape.
-- [ ] Remove the temporary startup product request once the HTTP handler replaces it.
-- [ ] Keep purchases, SSE, TLS, and structured tracing out of this increment.
+- [x] Add Axum and Serde with only the features required for HTTP and JSON.
+- [x] Enable the Tokio networking and time features needed by the HTTP server and RPC deadline.
+- [x] Define a public `ProductResponse` type separate from the Protobuf response.
+- [x] Change Checkout from a one-shot smoke client into a long-running Axum server on port `8080`.
+- [x] Create the Tonic channel during Checkout startup and share the client through application state.
+- [x] Implement only `GET /products/{product_id}`.
+- [x] Add a short deadline to the internal unary call.
+- [x] Map gRPC `NOT_FOUND` to HTTP 404.
+- [x] Map Inventory unavailability or deadline failure to a controlled 503 or 504.
+- [x] Return a consistent JSON error shape.
+- [x] Remove the temporary startup product request once the HTTP handler replaces it.
+- [x] Keep purchases, SSE, TLS, and structured tracing out of this increment.
 
 ### Verify completion
 
-- [ ] A public request for a seeded product returns HTTP 200 with SQLite-backed JSON.
-- [ ] An unknown product returns HTTP 404 with safe JSON.
-- [ ] Stopping Inventory causes a controlled 503 or 504 rather than a Checkout crash.
-- [ ] Restarting Inventory allows subsequent product requests to succeed.
-- [ ] Checkout never opens SQLite directly.
-- [ ] Formatting, compilation, and focused tests pass.
+- [x] A public request for a seeded product returns HTTP 200 with SQLite-backed JSON.
+- [x] An unknown product returns HTTP 404 with safe JSON.
+- [x] Stopping Inventory causes a controlled 503 or 504 rather than a Checkout crash.
+- [x] Restarting Inventory allows subsequent product requests to succeed.
+- [x] Checkout never opens SQLite directly.
+- [x] Formatting, compilation, and focused tests pass.
 
 **Learning checkpoint:** Explain why the public JSON model should not be the generated Protobuf model.
 

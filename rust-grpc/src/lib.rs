@@ -1,3 +1,4 @@
+pub mod checkout;
 pub mod inventory;
 
 pub mod inventory_v1 {

@@ -7,10 +7,10 @@ edition = "2024"
 dotenvy = "0.15.7"
 prost = "0.14.4"
 sqlx = { version = "0.8.6", features = ["runtime-tokio", "sqlite"] }
-tokio = { version = "1.53.2", features = ["rt-multi-thread", "macros", "full"] }
+tokio = { version = "1.53.2", features = ["rt-multi-thread", "macros", "net", "time"] }
 tonic = "0.14.6"
 tonic-prost = "0.14.6"
-axum = "0.8.9"
+axum = { version = "0.8.9", default-features = false, features = ["http1", "json", "tokio"] }
 serde = { version = "1.0.229", features = ["derive"] }
 
 [build-dependencies]
