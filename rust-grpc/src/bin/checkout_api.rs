@@ -2,7 +2,7 @@ use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::routing::get;
 use axum::{Json, Router};
-use rust_grpc::inventory_v1::GetAvailabilityRequest;
+use rust_grpc::inventory_v1::GetProductRequest;
 use rust_grpc::inventory_v1::inventory_client::InventoryClient;
 use serde::Serialize;
 use std::time::Duration;
@@ -15,37 +15,33 @@ struct AppState {
 }
 
 #[derive(Serialize)]
-struct AvailabilityResponse {
+struct ProductResponse {
     product_id: i64,
     name: String,
-    availability_quantity: i64,
+    stock: i64,
 }
 
-async fn hello_world() -> &'static str {
-    "Hello, World!"
-}
-
-async fn get_inventory(
+async fn get_product(
     State(state): State<AppState>,
-    Path(id): Path<i64>,
-) -> Result<Json<AvailabilityResponse>, StatusCode> {
+    Path(product_id): Path<i64>,
+) -> Result<Json<ProductResponse>, StatusCode> {
     let mut client = state.inventory_client.clone();
-    let mut request = Request::new(GetAvailabilityRequest { product_id: id });
+    let mut request = Request::new(GetProductRequest { product_id });
 
     request.set_timeout(Duration::from_secs(2));
 
     let product = client
-        .get_availability(request)
+        .get_product(request)
         .await
         .map_err(|status| match status.code() {
             tonic::Code::NotFound => StatusCode::NOT_FOUND,
             _ => StatusCode::SERVICE_UNAVAILABLE,
         })?
         .into_inner();
-    Ok(Json(AvailabilityResponse {
+    Ok(Json(ProductResponse {
         product_id: product.product_id,
         name: product.name,
-        availability_quantity: product.available_quantity,
+        stock: product.stock,
     }))
 }
 
@@ -53,13 +49,12 @@ async fn setup_server() -> Result<(), Box<dyn std::error::Error>> {
     let client = InventoryClient::connect("http://[::1]:50051").await?;
 
     let app = Router::new()
-        .route("/", get(hello_world))
-        .route("/products/{id}/availability", get(get_inventory))
+        .route("/products/{product_id}", get(get_product))
         .with_state(AppState {
             inventory_client: client,
         });
 
-    let addr = "127.0.0.1:8000";
+    let addr = "127.0.0.1:8080";
     let listener = tokio::net::TcpListener::bind(addr).await?;
     println!("🚀 Checkout Server successfully running on http://{}", addr);
 

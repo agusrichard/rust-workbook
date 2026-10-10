@@ -3,17 +3,17 @@ syntax = "proto3";
 package inventory.v1;
 
 service Inventory {
-  rpc GetAvailability(GetAvailabilityRequest)
-    returns (GetAvailabilityResponse);
+  rpc GetProduct(GetProductRequest)
+    returns (GetProductResponse);
 
 }
 
-message GetAvailabilityRequest {
+message GetProductRequest {
   int64 product_id = 1;
 }
 
-message GetAvailabilityResponse {
+message GetProductResponse {
   int64 product_id = 1;
   string name = 2;
-  int64 available_quantity = 3;
+  int64 stock = 3;
 }

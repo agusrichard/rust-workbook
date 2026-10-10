@@ -1,7 +1,7 @@
 use dotenvy::dotenv;
 use rust_grpc::inventory::repository::ProductRepository;
 use rust_grpc::inventory_v1::inventory_server::{Inventory, InventoryServer};
-use rust_grpc::inventory_v1::{GetAvailabilityRequest, GetAvailabilityResponse};
+use rust_grpc::inventory_v1::{GetProductRequest, GetProductResponse};
 use sqlx::SqlitePool;
 use sqlx::sqlite::SqliteConnectOptions;
 use std::env;
@@ -24,25 +24,25 @@ impl InventoryService {
 
 #[tonic::async_trait]
 impl Inventory for InventoryService {
-    async fn get_availability(
+    async fn get_product(
         &self,
-        request: tonic::Request<GetAvailabilityRequest>,
-    ) -> tonic::Result<Response<GetAvailabilityResponse>, tonic::Status> {
-        let id = request.into_inner().product_id;
+        request: tonic::Request<GetProductRequest>,
+    ) -> tonic::Result<Response<GetProductResponse>, tonic::Status> {
+        let product_id = request.into_inner().product_id;
 
         let product = self
             .repository
-            .get_by_id(id)
+            .get_by_id(product_id)
             .await
             .map_err(|e| tonic::Status::internal(format!("Database error: {}", e)))?;
 
         match product {
-            Some(product) => Ok(Response::new(GetAvailabilityResponse {
+            Some(product) => Ok(Response::new(GetProductResponse {
                 product_id: product.id,
                 name: product.name,
-                available_quantity: product.stock,
+                stock: product.stock,
             })),
-            None => Err(tonic::Status::not_found("not found")),
+            None => Err(tonic::Status::not_found("product not found")),
         }
     }
 }

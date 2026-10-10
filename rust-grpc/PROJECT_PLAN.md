@@ -17,7 +17,7 @@ Do not add future RPC methods as placeholders. The Protobuf contract, database s
 
 At the end of the project:
 
-- A public Axum server exposes availability, purchase, and SSE notification endpoints.
+- A public Axum server exposes product, purchase, and SSE notification endpoints.
 - A private Tonic server owns product and purchase data in SQLite.
 - The public server uses unary and server-streaming gRPC to call the private server.
 - SQLite transactions prevent overselling.
@@ -36,6 +36,15 @@ At the end of the project:
 - Never commit generated private keys or the SQLite database.
 - Treat notifications as live-only; durable delivery is outside this project.
 
+## Naming convention
+
+- Use **Inventory Service** for the private server that owns product stock and purchases.
+- Use **Product** for the catalog resource in database, repository, gRPC, and HTTP code.
+- Use `GetProduct`, `get_product`, and `GET /products/{product_id}` for the same read operation at each boundary.
+- Use `stock` for the stored and returned product quantity.
+- Use `product_id` at API boundaries and when one resource refers to a product; use `id` only for the product model's own primary-key field.
+- Name transport-specific models by their role, such as `GetProductResponse` for Protobuf and `ProductResponse` for public JSON.
+
 ## Incremental delivery map
 
 | Task | Working increment delivered |
@@ -43,8 +52,8 @@ At the end of the project:
 | 0 | Verified local development baseline |
 | 1 | Two runnable server binaries |
 | 2 | SQLite product catalog with seed data |
-| 3 | Availability works from Checkout to Inventory over gRPC |
-| 4 | Availability is publicly accessible over REST |
+| 3 | Product retrieval works from Checkout to Inventory over gRPC |
+| 4 | Product retrieval is publicly accessible over REST |
 | 5 | Purchases work correctly inside the database boundary |
 | 6 | Purchases work end-to-end through REST and gRPC |
 | 7 | Committed purchases produce an internal gRPC event stream |
@@ -59,7 +68,7 @@ At the end of the project:
 | Day | Tasks | Approximate focus time |
 |---|---|---:|
 | Completed | Tasks 0–1 | 40 minutes |
-| Day 1 | Tasks 2–6: database, availability, REST, purchase transaction, purchase API | 5–6 hours |
+| Day 1 | Tasks 2–6: database, product retrieval, REST, purchase transaction, purchase API | 5–6 hours |
 | Day 2 | Tasks 7–12: streaming, SSE, certificates, mTLS, resilience, acceptance | 5–6 hours |
 
 The timeboxes are guides. Understanding and verifying each increment matters more than the estimate.
@@ -155,7 +164,7 @@ The timeboxes are guides. Understanding and verifying each increment matters mor
 
 ---
 
-## Task 3 — Deliver product availability over gRPC
+## Task 3 — Deliver product retrieval over gRPC
 
 **Goal:** Complete the first internal feature from Checkout to Inventory using one unary RPC.
 
@@ -166,12 +175,12 @@ The timeboxes are guides. Understanding and verifying each increment matters mor
 - [x] Add Tonic, Prost, and the Tonic Prost runtime required by generated code.
 - [x] Add `tonic-prost-build` under build dependencies.
 - [x] Create or finish `proto/inventory.proto` with package `inventory.v1`.
-- [x] Define only the `GetAvailability` RPC and its request and response messages.
+- [x] Define only the `GetProduct` RPC and its request and response messages.
 - [x] Do not define `CreatePurchase` or `WatchPurchases` yet.
 - [x] Create or finish root-level `build.rs` and compile the `.proto` file.
 - [x] Create or finish `src/lib.rs` as the shared generated-contract module.
 - [x] Inspect the generated client, server trait, request, and response types.
-- [x] Implement `GetAvailability` by calling the Task 2 repository operation.
+- [x] Implement `GetProduct` by calling the Task 2 repository operation.
 - [x] Map an unknown product to gRPC `NOT_FOUND`.
 - [x] Start Inventory's Tonic server on port `50051` using temporary plaintext transport.
 - [x] Convert Checkout to an async entry point.
@@ -183,19 +192,19 @@ The timeboxes are guides. Understanding and verifying each increment matters mor
 
 - [x] `cargo check --all-targets` invokes `protoc` and succeeds.
 - [x] Inventory remains running on port `50051`.
-- [x] Running Checkout for a seeded ID prints the product and available quantity.
+- [x] Running Checkout for a seeded ID prints the product and its stock.
 - [x] Running Checkout for an unknown ID reports `NOT_FOUND` without crashing either process.
 - [x] The response is sourced from SQLite rather than hard-coded in the gRPC service.
 - [x] The generated Inventory service contains exactly one RPC.
 - [x] Formatting and focused tests pass.
 
-**Learning checkpoint:** Trace the availability request through the generated client, network transport, generated server, repository, and back.
+**Learning checkpoint:** Trace the product request through the generated client, network transport, generated server, repository, and back.
 
 ---
 
-## Task 4 — Expose availability through public REST
+## Task 4 — Expose product retrieval through public REST
 
-**Goal:** Turn the internal availability call into the first public API endpoint.
+**Goal:** Turn the internal product lookup into the first public API endpoint.
 
 **Timebox:** 60 minutes
 
@@ -203,15 +212,15 @@ The timeboxes are guides. Understanding and verifying each increment matters mor
 
 - [ ] Add Axum and Serde with only the features required for HTTP and JSON.
 - [ ] Enable the Tokio networking and time features needed by the HTTP server and RPC deadline.
-- [ ] Define a public availability response type separate from the Protobuf response.
+- [ ] Define a public `ProductResponse` type separate from the Protobuf response.
 - [ ] Change Checkout from a one-shot smoke client into a long-running Axum server on port `8080`.
 - [ ] Create the Tonic channel during Checkout startup and share the client through application state.
-- [ ] Implement only `GET /products/{product_id}/availability`.
+- [ ] Implement only `GET /products/{product_id}`.
 - [ ] Add a short deadline to the internal unary call.
 - [ ] Map gRPC `NOT_FOUND` to HTTP 404.
 - [ ] Map Inventory unavailability or deadline failure to a controlled 503 or 504.
 - [ ] Return a consistent JSON error shape.
-- [ ] Remove the temporary startup availability request once the HTTP handler replaces it.
+- [ ] Remove the temporary startup product request once the HTTP handler replaces it.
 - [ ] Keep purchases, SSE, TLS, and structured tracing out of this increment.
 
 ### Verify completion
@@ -219,7 +228,7 @@ The timeboxes are guides. Understanding and verifying each increment matters mor
 - [ ] A public request for a seeded product returns HTTP 200 with SQLite-backed JSON.
 - [ ] An unknown product returns HTTP 404 with safe JSON.
 - [ ] Stopping Inventory causes a controlled 503 or 504 rather than a Checkout crash.
-- [ ] Restarting Inventory allows subsequent availability requests to succeed.
+- [ ] Restarting Inventory allows subsequent product requests to succeed.
 - [ ] Checkout never opens SQLite directly.
 - [ ] Formatting, compilation, and focused tests pass.
 
@@ -288,7 +297,7 @@ The timeboxes are guides. Understanding and verifying each increment matters mor
 
 - [ ] A valid HTTP purchase returns 201 and a purchase ID.
 - [ ] SQLite shows both the new purchase and reduced product stock.
-- [ ] The availability endpoint reports the updated quantity.
+- [ ] The product endpoint reports the updated stock.
 - [ ] Unknown, zero-quantity, and insufficient-stock requests return 404, 400, and 409.
 - [ ] Rejected HTTP requests make no database changes.
 - [ ] Two competing HTTP purchases cannot oversell the product.
@@ -297,7 +306,7 @@ The timeboxes are guides. Understanding and verifying each increment matters mor
 
 ### Day 1 milestone
 
-Demonstrate availability and purchasing through the public REST API. Commit or record a checkpoint before introducing streaming.
+Demonstrate product retrieval and purchasing through the public REST API. Commit or record a checkpoint before introducing streaming.
 
 ---
 
@@ -414,13 +423,13 @@ Demonstrate availability and purchasing through the public REST API. Commit or r
 - [ ] Configure Checkout to trust the CA for the Inventory server.
 - [ ] Configure Checkout with its client certificate and private key.
 - [ ] Set the expected server domain to match the certificate SAN.
-- [ ] Reuse the secure channel for availability, purchases, and the event subscription.
+- [ ] Reuse the secure channel for product retrieval, purchases, and the event subscription.
 - [ ] Remove or disable plaintext gRPC.
 - [ ] Keep detailed TLS errors internal while returning safe public failures.
 
 ### Verify completion
 
-- [ ] Availability, purchasing, and SSE notifications work with trusted certificates.
+- [ ] Product retrieval, purchasing, and SSE notifications work with trusted certificates.
 - [ ] Omitting the Checkout client identity fails.
 - [ ] A client certificate signed by another CA fails.
 - [ ] Trusting the wrong server CA fails.
@@ -478,7 +487,7 @@ Demonstrate availability and purchasing through the public REST API. Commit or r
 - [ ] Document required tools and setup order.
 - [ ] Document database creation and certificate generation.
 - [ ] Document how to start each server in a separate terminal.
-- [ ] Add example availability, purchase, and SSE requests.
+- [ ] Add example product, purchase, and SSE requests.
 - [ ] State that notifications are live-only.
 - [ ] Document ports and environment variables.
 - [ ] Run formatting, compilation, and all tests.

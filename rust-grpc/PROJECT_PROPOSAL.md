@@ -18,7 +18,7 @@ An online shop should not let public web or mobile clients access its inventory 
 - The Checkout API owns the public HTTP contract.
 - The Inventory Service owns stock and purchase consistency.
 - SQLite provides simple, durable local storage.
-- Unary gRPC handles availability checks and purchases.
+- Unary gRPC handles product retrieval and purchases.
 - Server-streaming gRPC carries live purchase events to another service.
 - mTLS encrypts internal traffic and lets both services verify the other's identity.
 - SSE gives browsers and command-line clients a simple way to observe notifications.
@@ -27,7 +27,7 @@ The same pattern appears in ticket booking, hotel reservations, warehouse system
 
 ## User stories
 
-> As a shopper, I can check a product's availability and purchase a quantity through a public REST API.
+> As a shopper, I can retrieve a product's current stock and purchase a quantity through a public REST API.
 
 > As an operator, I can subscribe to a live HTTP event stream and receive a notification after each purchase is successfully committed.
 
@@ -36,7 +36,7 @@ The same pattern appears in ticket booking, hotel reservations, warehouse system
 ```text
                      public REST/JSON
 Customer  ------------------------------------>  Checkout API
-          GET /products/{id}/availability       (Axum, port 8080)
+          GET /products/{product_id}            (Axum, port 8080)
           POST /purchases                               |
                                                        | unary gRPC over mTLS
                                                        v
@@ -62,15 +62,15 @@ The Checkout API is an HTTP server and a gRPC client. It keeps one long-lived su
 
 ### Public REST API
 
-#### `GET /products/{product_id}/availability`
+#### `GET /products/{product_id}`
 
 Successful response:
 
 ```json
 {
-  "product_id": "keyboard-01",
+  "product_id": 1,
   "name": "Mechanical Keyboard",
-  "available_quantity": 10
+  "stock": 10
 }
 ```
 
@@ -80,7 +80,7 @@ Request:
 
 ```json
 {
-  "product_id": "keyboard-01",
+  "product_id": 1,
   "quantity": 2
 }
 ```
@@ -90,7 +90,7 @@ Successful response (`201 Created`):
 ```json
 {
   "purchase_id": "generated-uuid",
-  "product_id": "keyboard-01",
+  "product_id": 1,
   "purchased_quantity": 2,
   "remaining_quantity": 8,
   "purchased_at": "2026-10-07T12:00:00Z"
@@ -103,7 +103,7 @@ This is a long-lived SSE endpoint. After a committed purchase, connected clients
 
 ```text
 event: purchase.completed
-data: {"purchase_id":"generated-uuid","product_id":"keyboard-01","quantity":2,"purchased_at":"2026-10-07T12:00:00Z"}
+data: {"purchase_id":"generated-uuid","product_id":1,"quantity":2,"purchased_at":"2026-10-07T12:00:00Z"}
 ```
 
 Keep the HTTP models independent from generated Protobuf types. The Checkout API explicitly maps between its public JSON contract and the internal gRPC contract.
@@ -118,8 +118,8 @@ syntax = "proto3";
 package inventory.v1;
 
 service Inventory {
-  rpc GetAvailability(GetAvailabilityRequest)
-      returns (GetAvailabilityResponse);
+  rpc GetProduct(GetProductRequest)
+      returns (GetProductResponse);
 
   rpc CreatePurchase(CreatePurchaseRequest)
       returns (CreatePurchaseResponse);
@@ -128,24 +128,24 @@ service Inventory {
       returns (stream PurchaseEvent);
 }
 
-message GetAvailabilityRequest {
-  string product_id = 1;
+message GetProductRequest {
+  int64 product_id = 1;
 }
 
-message GetAvailabilityResponse {
-  string product_id = 1;
+message GetProductResponse {
+  int64 product_id = 1;
   string name = 2;
-  uint32 available_quantity = 3;
+  int64 stock = 3;
 }
 
 message CreatePurchaseRequest {
-  string product_id = 1;
+  int64 product_id = 1;
   uint32 quantity = 2;
 }
 
 message CreatePurchaseResponse {
   string purchase_id = 1;
-  string product_id = 2;
+  int64 product_id = 2;
   uint32 purchased_quantity = 3;
   uint32 remaining_quantity = 4;
   string purchased_at = 5;
@@ -155,7 +155,7 @@ message WatchPurchasesRequest {}
 
 message PurchaseEvent {
   string purchase_id = 1;
-  string product_id = 2;
+  int64 product_id = 2;
   uint32 quantity = 3;
   string purchased_at = 4;
 }
@@ -169,14 +169,14 @@ The Inventory Service is the only process that accesses the database. Use `sqlx`
 
 ```sql
 CREATE TABLE products (
-    id           TEXT PRIMARY KEY,
+    id           INTEGER PRIMARY KEY,
     name         TEXT NOT NULL,
     stock        INTEGER NOT NULL CHECK (stock >= 0)
 );
 
 CREATE TABLE purchases (
     id           TEXT PRIMARY KEY,
-    product_id   TEXT NOT NULL REFERENCES products(id),
+    product_id   INTEGER NOT NULL REFERENCES products(id),
     quantity     INTEGER NOT NULL CHECK (quantity > 0),
     purchased_at TEXT NOT NULL
 );
@@ -296,7 +296,7 @@ Target: a complete purchase round trip over unsecured local gRPC.
 1. Add dependencies, the Protobuf build script, and the SQLite migration.
 2. Define the three RPCs and confirm generated code compiles.
 3. Create the SQLite pool, run migrations, and seed sample products.
-4. Implement `GetAvailability` and transactional `CreatePurchase`.
+4. Implement `GetProduct` and transactional `CreatePurchase`.
 5. Implement the Checkout API REST handlers and gRPC-to-HTTP error mapping.
 6. Manually test successful, missing-product, invalid-quantity, insufficient-stock, and concurrent-purchase cases.
 
@@ -321,7 +321,7 @@ Suggested stopping point: a valid REST purchase is persisted, produces a live SS
 
 - Both servers run as separate processes.
 - The Inventory Service is the only owner of the SQLite database.
-- `GET /products/{id}/availability` obtains its data through gRPC.
+- `GET /products/{product_id}` obtains its data through gRPC.
 - `POST /purchases` updates stock and inserts a purchase in one transaction.
 - Concurrent successful purchases cannot make stock negative.
 - A committed purchase produces one live gRPC `PurchaseEvent`.

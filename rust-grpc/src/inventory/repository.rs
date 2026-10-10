@@ -16,9 +16,9 @@ impl ProductRepository {
         ProductRepository { pool }
     }
 
-    pub async fn get_by_id(&self, id: i64) -> Result<Option<Product>, sqlx::Error> {
+    pub async fn get_by_id(&self, product_id: i64) -> Result<Option<Product>, sqlx::Error> {
         let result = sqlx::query_as::<_, Product>("SELECT * FROM products WHERE id = ?")
-            .bind(id)
+            .bind(product_id)
             .fetch_optional(&self.pool)
             .await?;
         Ok(result)
@@ -51,7 +51,7 @@ mod tests {
     }
 
     #[sqlx::test]
-    async fn get_by_id_returns_none_for_unkown_product(pool: SqlitePool) -> Result<()> {
+    async fn get_by_id_returns_none_for_unknown_product(pool: SqlitePool) -> Result<()> {
         let repository = ProductRepository::new(pool.clone());
         let product = repository.get_by_id(99).await?;
         assert!(product.is_none());
