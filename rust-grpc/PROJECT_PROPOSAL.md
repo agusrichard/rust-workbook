@@ -89,10 +89,10 @@ Successful response (`201 Created`):
 
 ```json
 {
-  "purchase_id": "generated-uuid",
+  "purchase_id": 1,
   "product_id": 1,
   "purchased_quantity": 2,
-  "remaining_quantity": 8,
+  "remaining_stock": 8,
   "purchased_at": "2026-10-07T12:00:00Z"
 }
 ```
@@ -103,7 +103,7 @@ This is a long-lived SSE endpoint. After a committed purchase, connected clients
 
 ```text
 event: purchase.completed
-data: {"purchase_id":"generated-uuid","product_id":1,"quantity":2,"purchased_at":"2026-10-07T12:00:00Z"}
+data: {"purchase_id":1,"product_id":1,"quantity":2,"purchased_at":"2026-10-07T12:00:00Z"}
 ```
 
 Keep the HTTP models independent from generated Protobuf types. The Checkout API explicitly maps between its public JSON contract and the internal gRPC contract.
@@ -140,23 +140,23 @@ message GetProductResponse {
 
 message CreatePurchaseRequest {
   int64 product_id = 1;
-  uint32 quantity = 2;
+  int64 quantity = 2;
 }
 
 message CreatePurchaseResponse {
-  string purchase_id = 1;
+  int64 purchase_id = 1;
   int64 product_id = 2;
-  uint32 purchased_quantity = 3;
-  uint32 remaining_quantity = 4;
+  int64 purchased_quantity = 3;
+  int64 remaining_stock = 4;
   string purchased_at = 5;
 }
 
 message WatchPurchasesRequest {}
 
 message PurchaseEvent {
-  string purchase_id = 1;
+  int64 purchase_id = 1;
   int64 product_id = 2;
-  uint32 quantity = 3;
+  int64 quantity = 3;
   string purchased_at = 4;
 }
 ```
@@ -175,7 +175,7 @@ CREATE TABLE products (
 );
 
 CREATE TABLE purchases (
-    id           TEXT PRIMARY KEY,
+    id           INTEGER PRIMARY KEY,
     product_id   INTEGER NOT NULL REFERENCES products(id),
     quantity     INTEGER NOT NULL CHECK (quantity > 0),
     purchased_at TEXT NOT NULL
@@ -249,7 +249,7 @@ This provides confidentiality, integrity, server authentication, and client auth
 | Protobuf messages | `prost`, `tonic-prost`, `tonic-prost-build` |
 | SQLite | `sqlx` with SQLite and Tokio runtime features |
 | JSON | `serde`, `serde_json` |
-| IDs | `uuid` |
+| Integer IDs | SQLite `INTEGER PRIMARY KEY` |
 | UTC timestamps | `time` or `chrono` |
 | Stream adapters | `tokio-stream` |
 | Logging/tracing | `tracing`, `tracing-subscriber` |
@@ -268,7 +268,7 @@ Use mutually compatible versions from the Tonic family. The existing `index.html
 ├── proto/
 │   └── inventory.proto
 ├── scripts/
-│   └── generate-certs.sh
+│   └── generate_certs.sh
 ├── certs/                         # generated and git-ignored
 ├── data/                          # SQLite file and git-ignored
 ├── src/
@@ -278,8 +278,9 @@ Use mutually compatible versions from the Tonic family. The existing `index.html
 │   │   └── inventory_service.rs
 │   ├── checkout/
 │   │   ├── handlers.rs
-│   │   ├── notifications.rs
-│   │   └── error.rs
+│   │   ├── models.rs
+│   │   ├── subscriber.rs
+│   │   └── errors.rs
 │   └── inventory/
 │       ├── repository.rs
 │       └── service.rs

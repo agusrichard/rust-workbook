@@ -7,11 +7,15 @@ edition = "2024"
 dotenvy = "0.15.7"
 prost = "0.14.4"
 sqlx = { version = "0.8.6", features = ["runtime-tokio", "sqlite"] }
-tokio = { version = "1.53.2", features = ["rt-multi-thread", "macros", "net", "time"] }
-tonic = "0.14.6"
+tokio = { version = "1.53.2", features = ["rt-multi-thread", "macros", "net", "time", "sync", "signal"] }
+tonic = { version = "0.14.6", features = ["tls-ring"] }
 tonic-prost = "0.14.6"
 axum = { version = "0.8.9", default-features = false, features = ["http1", "json", "tokio"] }
 serde = { version = "1.0.229", features = ["derive"] }
+time = { version = "0.3.55", features = ["formatting", "parsing"] }
+tokio-stream = { version = "0.1.19", features = ["sync"] }
+tracing = "0.1.44"
+tracing-subscriber = { version = "0.3.23", features = ["env-filter", "fmt"] }
 
 [build-dependencies]
 tonic-prost-build = "0.14.6"

@@ -43,6 +43,7 @@ At the end of the project:
 - Use `GetProduct`, `get_product`, and `GET /products/{product_id}` for the same read operation at each boundary.
 - Use `stock` for the stored and returned product quantity.
 - Use `product_id` at API boundaries and when one resource refers to a product; use `id` only for the product model's own primary-key field.
+- Use SQLite-generated positive integers for purchase IDs and represent them as `i64`/`int64` at Rust and Protobuf boundaries.
 - Name transport-specific models by their role, such as `GetProductResponse` for Protobuf and `ProductResponse` for public JSON.
 
 ## Incremental delivery map
@@ -244,30 +245,30 @@ The timeboxes are guides. Understanding and verifying each increment matters mor
 
 ### Checklist
 
-- [ ] Add a second migration that creates the `purchases` table without changing the first migration.
-- [ ] Add the product foreign key and a positive-quantity constraint.
-- [ ] Add a UUID crate with random UUID generation enabled.
-- [ ] Add one timestamp crate with UTC RFC 3339 formatting support.
-- [ ] Define domain results and errors without depending on HTTP or gRPC types.
-- [ ] Reject zero quantity before opening a transaction.
-- [ ] Start one SQLite transaction for the purchase.
-- [ ] Decrease stock with a conditional update that requires sufficient stock.
-- [ ] Distinguish an unknown product from insufficient stock when no row is updated.
-- [ ] Insert the purchase ID, product ID, quantity, and timestamp within the same transaction.
-- [ ] Commit before returning success.
-- [ ] Add tests for success, unknown product, zero quantity, and insufficient stock.
-- [ ] Add a test where concurrent purchases compete for limited stock.
-- [ ] Keep the Protobuf and HTTP contracts unchanged in this increment.
+- [x] Add a second migration that creates the `purchases` table without changing the first migration.
+- [x] Give purchases an SQLite-generated `INTEGER PRIMARY KEY`.
+- [x] Add the product foreign key and a positive-quantity constraint.
+- [x] Add one timestamp crate with UTC RFC 3339 formatting support.
+- [x] Define domain results and errors without depending on HTTP or gRPC types.
+- [x] Reject zero quantity before opening a transaction.
+- [x] Start one SQLite transaction for the purchase.
+- [x] Decrease stock with a conditional update that requires sufficient stock.
+- [x] Distinguish an unknown product from insufficient stock when no row is updated.
+- [x] Insert the product ID, quantity, and timestamp within the transaction, then read SQLite's generated purchase ID.
+- [x] Commit before returning success.
+- [x] Add tests for success, unknown product, zero quantity, and insufficient stock.
+- [x] Add a test where concurrent purchases compete for limited stock.
+- [x] Keep the Protobuf and HTTP contracts unchanged in this increment.
 
 ### Verify completion
 
-- [ ] Migrating an existing Task 4 database preserves its products and adds `purchases`.
-- [ ] A successful repository call decreases stock and inserts exactly one purchase.
-- [ ] Every rejected purchase leaves both tables unchanged.
-- [ ] Concurrent attempts never make stock negative.
-- [ ] Starting stock equals successful purchased quantity plus remaining stock.
-- [ ] Returned purchase IDs and timestamps have the expected formats.
-- [ ] All database and business tests pass repeatedly.
+- [x] Migrating an existing Task 4 database preserves its products and adds `purchases`.
+- [x] A successful repository call decreases stock and inserts exactly one purchase.
+- [x] Every rejected purchase leaves both tables unchanged.
+- [x] Concurrent attempts never make stock negative.
+- [x] Starting stock equals successful purchased quantity plus remaining stock.
+- [x] Returned purchase IDs are positive integers and timestamps have the expected format.
+- [x] All database and business tests pass repeatedly.
 
 **Learning checkpoint:** Describe the race condition caused by checking and updating stock in separate transactions.
 
@@ -281,28 +282,28 @@ The timeboxes are guides. Understanding and verifying each increment matters mor
 
 ### Checklist
 
-- [ ] Extend the Protobuf service with `CreatePurchase` only now.
-- [ ] Add only the request and response fields needed by the purchase feature.
-- [ ] Rebuild and inspect how the generated client and server interfaces changed.
-- [ ] Implement `CreatePurchase` by calling the tested Task 5 transaction.
-- [ ] Map unknown product, zero quantity, and insufficient stock to appropriate gRPC statuses.
-- [ ] Define separate public HTTP purchase request and response models.
-- [ ] Implement `POST /purchases` in Checkout.
-- [ ] Validate obvious public input before making the internal call.
-- [ ] Map expected gRPC statuses to HTTP 404, 400, and 409.
-- [ ] Apply the existing unary deadline policy.
-- [ ] Keep streaming, SSE, TLS, and structured tracing out of this increment.
+- [x] Extend the Protobuf service with `CreatePurchase` only now.
+- [x] Add only the request and response fields needed by the purchase feature.
+- [x] Rebuild and inspect how the generated client and server interfaces changed.
+- [x] Implement `CreatePurchase` by calling the tested Task 5 transaction.
+- [x] Map unknown product, zero quantity, and insufficient stock to appropriate gRPC statuses.
+- [x] Define separate public HTTP purchase request and response models.
+- [x] Implement `POST /purchases` in Checkout.
+- [x] Validate obvious public input before making the internal call.
+- [x] Map expected gRPC statuses to HTTP 404, 400, and 409.
+- [x] Apply the existing unary deadline policy.
+- [x] Keep streaming, SSE, TLS, and structured tracing out of this increment.
 
 ### Verify completion
 
-- [ ] A valid HTTP purchase returns 201 and a purchase ID.
-- [ ] SQLite shows both the new purchase and reduced product stock.
-- [ ] The product endpoint reports the updated stock.
-- [ ] Unknown, zero-quantity, and insufficient-stock requests return 404, 400, and 409.
-- [ ] Rejected HTTP requests make no database changes.
-- [ ] Two competing HTTP purchases cannot oversell the product.
-- [ ] The generated Inventory service now contains exactly two unary RPCs.
-- [ ] Formatting, compilation, and feature tests pass.
+- [x] A valid HTTP purchase returns 201 and a purchase ID.
+- [x] SQLite shows both the new purchase and reduced product stock.
+- [x] The product endpoint reports the updated stock.
+- [x] Unknown, zero-quantity, and insufficient-stock requests return 404, 400, and 409.
+- [x] Rejected HTTP requests make no database changes.
+- [x] Two competing HTTP purchases cannot oversell the product.
+- [x] The generated Inventory service now contains exactly two unary RPCs.
+- [x] Formatting, compilation, and feature tests pass.
 
 ### Day 1 milestone
 
@@ -318,29 +319,29 @@ Demonstrate product retrieval and purchasing through the public REST API. Commit
 
 ### Checklist
 
-- [ ] Extend the Protobuf service with `WatchPurchases` only now.
-- [ ] Add `WatchPurchasesRequest` and `PurchaseEvent` messages.
-- [ ] Confirm the generated method is server-streaming.
-- [ ] Enable Tokio broadcast support.
-- [ ] Add `tokio-stream` with the feature needed to wrap a broadcast receiver.
-- [ ] Create a broadcast channel owned by Inventory.
-- [ ] Make each `WatchPurchases` call subscribe to that channel.
-- [ ] Adapt the receiver to Tonic's expected stream item type.
-- [ ] Publish an event only after the purchase transaction commits.
-- [ ] Handle closed and lagged receivers deliberately.
-- [ ] Start one Checkout background task that subscribes to the gRPC stream.
-- [ ] Temporarily print received events so this internal increment is observable.
-- [ ] Keep the public HTTP API unchanged in this increment.
+- [x] Extend the Protobuf service with `WatchPurchases` only now.
+- [x] Add `WatchPurchasesRequest` and `PurchaseEvent` messages.
+- [x] Confirm the generated method is server-streaming.
+- [x] Enable Tokio broadcast support.
+- [x] Add `tokio-stream` with the feature needed to wrap a broadcast receiver.
+- [x] Create a broadcast channel owned by Inventory.
+- [x] Make each `WatchPurchases` call subscribe to that channel.
+- [x] Adapt the receiver to Tonic's expected stream item type.
+- [x] Publish an event only after the purchase transaction commits.
+- [x] Handle closed and lagged receivers deliberately.
+- [x] Start one Checkout background task that subscribes to the gRPC stream.
+- [x] Temporarily print received events so this internal increment is observable.
+- [x] Keep the public HTTP API unchanged in this increment.
 
 ### Verify completion
 
-- [ ] Checkout establishes the stream while continuing to serve REST requests.
-- [ ] One successful purchase produces one printed event with matching data.
-- [ ] A rejected or rolled-back purchase produces no event.
-- [ ] Two successful purchases produce two events.
-- [ ] Disconnecting Checkout does not stop purchase processing or crash Inventory.
-- [ ] A later subscriber receives future events but no historical events.
-- [ ] The generated Inventory service now contains two unary RPCs and one server-streaming RPC.
+- [x] Checkout establishes the stream while continuing to serve REST requests.
+- [x] One successful purchase produces one printed event with matching data.
+- [x] A rejected or rolled-back purchase produces no event.
+- [x] Two successful purchases produce two events.
+- [x] Disconnecting Checkout does not stop purchase processing or crash Inventory.
+- [x] A later subscriber receives future events but no historical events.
+- [x] The generated Inventory service now contains two unary RPCs and one server-streaming RPC.
 
 **Learning checkpoint:** Explain why publishing an event before the database commit could mislead consumers.
 
@@ -354,25 +355,25 @@ Demonstrate product retrieval and purchasing through the public REST API. Commit
 
 ### Checklist
 
-- [ ] Add direct JSON serialization support only if the SSE implementation needs it.
-- [ ] Define a public purchase-event type separate from the Protobuf event.
-- [ ] Add a Checkout-owned broadcast channel for connected HTTP clients.
-- [ ] Forward events from the existing gRPC subscriber into the local channel instead of printing them.
-- [ ] Implement `GET /notifications/purchases` using Axum SSE.
-- [ ] Use a stable event name such as `purchase.completed`.
-- [ ] Add an SSE keep-alive.
-- [ ] Release each receiver when its HTTP client disconnects.
-- [ ] Keep notifications live-only; do not add database replay or a message broker.
+- [x] Add direct JSON serialization support only if the SSE implementation needs it.
+- [x] Define a public purchase-event type separate from the Protobuf event.
+- [x] Add a Checkout-owned broadcast channel for connected HTTP clients.
+- [x] Forward events from the existing gRPC subscriber into the local channel instead of printing them.
+- [x] Implement `GET /notifications/purchases` using Axum SSE.
+- [x] Use a stable event name such as `purchase.completed`.
+- [x] Add an SSE keep-alive.
+- [x] Release each receiver when its HTTP client disconnects.
+- [x] Keep notifications live-only; do not add database replay or a message broker.
 
 ### Verify completion
 
-- [ ] An SSE client remains connected while ordinary REST requests still work.
-- [ ] A successful purchase produces one matching SSE event.
-- [ ] The event matches the purchase response's ID, product, quantity, and timestamp.
-- [ ] Multiple SSE clients receive the same new event.
-- [ ] Closing one SSE client does not affect the others.
-- [ ] A rejected purchase produces no SSE event.
-- [ ] A newly connected client does not receive historical purchases.
+- [x] An SSE client remains connected while ordinary REST requests still work.
+- [x] A successful purchase produces one matching SSE event.
+- [x] The event matches the purchase response's ID, product, quantity, and timestamp.
+- [x] Multiple SSE clients receive the same new event.
+- [x] Closing one SSE client does not affect the others.
+- [x] A rejected purchase produces no SSE event.
+- [x] A newly connected client does not receive historical purchases.
 
 **Learning checkpoint:** Explain the Inventory-to-gRPC and Checkout-to-SSE fan-out boundaries.
 
@@ -386,24 +387,24 @@ Demonstrate product retrieval and purchasing through the public REST API. Commit
 
 ### Checklist
 
-- [ ] Create `scripts/` only now that certificate automation is needed.
-- [ ] Write a repeatable OpenSSL script for one development CA.
-- [ ] Generate artifacts under the ignored `certs/` directory.
-- [ ] Generate an Inventory server certificate and private key signed by the CA.
-- [ ] Put the chosen Inventory service name in the server certificate SAN.
-- [ ] Generate a distinct Checkout client certificate and key signed by the CA.
-- [ ] Inspect issuer, subject, validity, key usage, and SAN.
-- [ ] Confirm generated certificates and keys remain ignored by Git.
-- [ ] Document that these identities are local development credentials.
-- [ ] Add no Rust dependency or TLS configuration in this increment.
+- [x] Create `scripts/` only now that certificate automation is needed.
+- [x] Write a repeatable OpenSSL script for one development CA.
+- [x] Generate artifacts under the ignored `certs/` directory.
+- [x] Generate an Inventory server certificate and private key signed by the CA.
+- [x] Put the chosen Inventory service name in the server certificate SAN.
+- [x] Generate a distinct Checkout client certificate and key signed by the CA.
+- [x] Inspect issuer, subject, validity, key usage, and SAN.
+- [x] Confirm generated certificates and keys remain ignored by Git.
+- [x] Document that these identities are local development credentials.
+- [x] Add no Rust dependency or TLS configuration in this increment.
 
 ### Verify completion
 
-- [ ] OpenSSL verifies both leaf certificates against the CA.
-- [ ] The server certificate contains the exact domain Tonic will verify.
-- [ ] Client and server certificates use distinct identities and private keys.
-- [ ] Running the script from a clean `certs/` directory recreates every artifact.
-- [ ] `git status` lists no generated certificate or private key.
+- [x] OpenSSL verifies both leaf certificates against the CA.
+- [x] The server certificate contains the exact domain Tonic will verify.
+- [x] Client and server certificates use distinct identities and private keys.
+- [x] Running the script from a clean `certs/` directory recreates every artifact.
+- [x] `git status` lists no generated certificate or private key.
 
 **Learning checkpoint:** Explain the separate roles of a CA certificate, server identity, and client identity.
 
@@ -417,24 +418,24 @@ Demonstrate product retrieval and purchasing through the public REST API. Commit
 
 ### Checklist
 
-- [ ] Enable the chosen Tonic TLS backend only now.
-- [ ] Configure Inventory with its server certificate and private key.
-- [ ] Configure Inventory to trust the development CA for client identities.
-- [ ] Configure Checkout to trust the CA for the Inventory server.
-- [ ] Configure Checkout with its client certificate and private key.
-- [ ] Set the expected server domain to match the certificate SAN.
-- [ ] Reuse the secure channel for product retrieval, purchases, and the event subscription.
-- [ ] Remove or disable plaintext gRPC.
-- [ ] Keep detailed TLS errors internal while returning safe public failures.
+- [x] Enable the chosen Tonic TLS backend only now.
+- [x] Configure Inventory with its server certificate and private key.
+- [x] Configure Inventory to trust the development CA for client identities.
+- [x] Configure Checkout to trust the CA for the Inventory server.
+- [x] Configure Checkout with its client certificate and private key.
+- [x] Set the expected server domain to match the certificate SAN.
+- [x] Reuse the secure channel for product retrieval, purchases, and the event subscription.
+- [x] Remove or disable plaintext gRPC.
+- [x] Keep detailed TLS errors internal while returning safe public failures.
 
 ### Verify completion
 
-- [ ] Product retrieval, purchasing, and SSE notifications work with trusted certificates.
-- [ ] Omitting the Checkout client identity fails.
-- [ ] A client certificate signed by another CA fails.
-- [ ] Trusting the wrong server CA fails.
-- [ ] Using the wrong server domain fails hostname verification.
-- [ ] No configuration disables certificate verification to make a test pass.
+- [x] Product retrieval, purchasing, and SSE notifications work with trusted certificates.
+- [x] Omitting the Checkout client identity fails.
+- [x] A client certificate signed by another CA fails.
+- [x] Trusting the wrong server CA fails.
+- [x] Using the wrong server domain fails hostname verification.
+- [x] No configuration disables certificate verification to make a test pass.
 
 **Learning checkpoint:** State which identity each side proves during the mTLS handshake.
 
@@ -448,28 +449,28 @@ Demonstrate product retrieval and purchasing through the public REST API. Commit
 
 ### Checklist
 
-- [ ] Add `tracing`.
-- [ ] Add `tracing-subscriber` with formatting and environment-filter support.
-- [ ] Enable Tokio signal support for graceful shutdown.
-- [ ] Initialize a tracing subscriber in both binaries.
-- [ ] Replace temporary prints with appropriately leveled structured events.
-- [ ] Include purchase and product IDs where useful.
-- [ ] Detect when Checkout's gRPC subscription ends or fails.
-- [ ] Reconnect using a small bounded backoff rather than a tight loop.
-- [ ] Keep unary deadlines separate from the long-lived stream lifetime.
-- [ ] Log connection, disconnection, retry, lag, success, and rejection.
-- [ ] Avoid logging private keys, certificate contents, or unsafe public error details.
-- [ ] Add graceful shutdown for both servers and Checkout's background task.
+- [x] Add `tracing`.
+- [x] Add `tracing-subscriber` with formatting and environment-filter support.
+- [x] Enable Tokio signal support for graceful shutdown.
+- [x] Initialize a tracing subscriber in both binaries.
+- [x] Replace temporary prints with appropriately leveled structured events.
+- [x] Include purchase and product IDs where useful.
+- [x] Detect when Checkout's gRPC subscription ends or fails.
+- [x] Reconnect using a small bounded backoff rather than a tight loop.
+- [x] Keep unary deadlines separate from the long-lived stream lifetime.
+- [x] Log connection, disconnection, retry, lag, success, and rejection.
+- [x] Avoid logging private keys, certificate contents, or unsafe public error details.
+- [x] Add graceful shutdown for both servers and Checkout's background task.
 
 ### Verify completion
 
-- [ ] Log verbosity changes when `RUST_LOG` changes.
-- [ ] Stopping Inventory produces controlled failure and retry logs without rapid spam.
-- [ ] Restarting Inventory causes Checkout to reconnect.
-- [ ] A purchase after reconnection reaches the SSE client.
-- [ ] REST calls during downtime return controlled errors.
-- [ ] Shutdown stops accepting work and exits without panic.
-- [ ] SQLite data survives every restart.
+- [x] Log verbosity changes when `RUST_LOG` changes.
+- [x] Stopping Inventory produces controlled failure and retry logs without rapid spam.
+- [x] Restarting Inventory causes Checkout to reconnect.
+- [x] A purchase after reconnection reaches the SSE client.
+- [x] REST calls during downtime return controlled errors.
+- [x] Shutdown stops accepting work and exits without panic.
+- [x] SQLite data survives every restart.
 
 **Learning checkpoint:** Explain why unary calls need deadlines while a deliberate subscription should not share the same lifetime limit.
 
@@ -483,28 +484,28 @@ Demonstrate product retrieval and purchasing through the public REST API. Commit
 
 ### Checklist
 
-- [ ] Add no production dependency unless verification exposes a genuine gap.
-- [ ] Document required tools and setup order.
-- [ ] Document database creation and certificate generation.
-- [ ] Document how to start each server in a separate terminal.
-- [ ] Add example product, purchase, and SSE requests.
-- [ ] State that notifications are live-only.
-- [ ] Document ports and environment variables.
-- [ ] Run formatting, compilation, and all tests.
-- [ ] Start from regenerated certificates and a fresh database.
-- [ ] Work through every acceptance criterion in `PROJECT_PROPOSAL.md`.
-- [ ] Record one limitation and one possible next improvement.
+- [x] Add no production dependency unless verification exposes a genuine gap.
+- [x] Document required tools and setup order.
+- [x] Document database creation and certificate generation.
+- [x] Document how to start each server in a separate terminal.
+- [x] Add example product, purchase, and SSE requests.
+- [x] State that notifications are live-only.
+- [x] Document ports and environment variables.
+- [x] Run formatting, compilation, and all tests.
+- [x] Start from regenerated certificates and a fresh database.
+- [x] Work through every acceptance criterion in `PROJECT_PROPOSAL.md`.
+- [x] Record one limitation and one possible next improvement.
 
 ### Verify completion
 
-- [ ] A clean setup creates and seeds the product database without manual editing.
-- [ ] Public clients require no knowledge of the gRPC schema.
-- [ ] A purchase atomically updates SQLite and returns the expected response.
-- [ ] A committed purchase appears once on an already-connected SSE client.
-- [ ] Rejected purchases neither alter data nor emit events.
-- [ ] All internal calls use mTLS and reject untrusted identities.
-- [ ] Formatting, compilation, and tests pass.
-- [ ] Following the documentation reproduces the complete demonstration.
+- [x] A clean setup creates and seeds the product database without manual editing.
+- [x] Public clients require no knowledge of the gRPC schema.
+- [x] A purchase atomically updates SQLite and returns the expected response.
+- [x] A committed purchase appears once on an already-connected SSE client.
+- [x] Rejected purchases neither alter data nor emit events.
+- [x] All internal calls use mTLS and reject untrusted identities.
+- [x] Formatting, compilation, and tests pass.
+- [x] Following the documentation reproduces the complete demonstration.
 
 ### Final explanation exercise
 
