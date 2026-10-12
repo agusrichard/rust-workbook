@@ -1,0 +1,44 @@
+syntax = "proto3";
+
+package inventory.v1;
+
+service Inventory {
+  rpc GetProduct(GetProductRequest)
+    returns (GetProductResponse);
+  rpc CreatePurchase(CreatePurchaseRequest)
+    returns (CreatePurchaseResponse);
+  rpc WatchPurchases(WatchPurchasesRequest)
+    returns (stream PurchaseEvent);
+}
+
+message GetProductRequest {
+  int64 product_id = 1;
+}
+
+message GetProductResponse {
+  int64 product_id = 1;
+  string name = 2;
+  int64 stock = 3;
+}
+
+message CreatePurchaseRequest {
+  int64 product_id = 1;
+  int64 quantity = 2;
+}
+
+message CreatePurchaseResponse {
+  int64 purchase_id = 1;
+  int64 product_id = 2;
+  int64 purchased_quantity = 3;
+  int64 remaining_stock = 4;
+  string purchased_at = 5;
+}
+
+message WatchPurchasesRequest {}
+
+message PurchaseEvent {
+  int64 purchase_id = 1;
+  int64 product_id = 2;
+  int64 quantity = 3;
+  string purchased_at = 4;
+}

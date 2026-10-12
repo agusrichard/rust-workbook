@@ -1,0 +1,1132 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="A practical, beginner-friendly guide to building production-minded gRPC services with Rust, tonic, Tokio, and Protocol Buffers.">
+  <title>gRPC with Rust — From First Principles to Production</title>
+  <style>
+    :root {
+      --ink: #17201b;
+      --muted: #607067;
+      --paper: #f6f4ed;
+      --panel: #fffdf7;
+      --line: #d9ddd5;
+      --green: #176b4d;
+      --green-soft: #dceee5;
+      --rust: #b94f2c;
+      --rust-soft: #f6e2d7;
+      --blue: #285b78;
+      --code: #13251d;
+      --code-ink: #eaf6ed;
+      --shadow: 0 16px 45px rgba(42, 55, 47, .09);
+      --radius: 18px;
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 8% 4%, rgba(185, 79, 44, .09), transparent 25rem),
+        radial-gradient(circle at 92% 12%, rgba(23, 107, 77, .08), transparent 28rem),
+        var(--paper);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.68;
+    }
+
+    a { color: var(--green); text-underline-offset: 3px; }
+    a:hover { color: var(--rust); }
+    code, pre { font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace; }
+    :focus-visible { outline: 3px solid #e5a844; outline-offset: 3px; }
+
+    .progress {
+      position: fixed;
+      z-index: 20;
+      inset: 0 auto auto 0;
+      width: 0;
+      height: 4px;
+      background: linear-gradient(90deg, var(--rust), #e5a844, var(--green));
+    }
+
+    .shell { width: min(1180px, calc(100% - 32px)); margin: 0 auto; }
+    .hero { padding: 72px 0 46px; }
+    .eyebrow {
+      display: inline-flex;
+      gap: 8px;
+      align-items: center;
+      margin: 0 0 22px;
+      padding: 7px 12px;
+      border: 1px solid #d7c9b9;
+      border-radius: 999px;
+      color: #76412e;
+      background: rgba(255, 253, 247, .7);
+      font-size: .78rem;
+      font-weight: 800;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+    }
+    h1, h2, h3, h4 { line-height: 1.18; letter-spacing: -.025em; }
+    h1 { max-width: 900px; margin: 0; font-size: clamp(3rem, 7vw, 6.4rem); }
+    h1 .accent { color: var(--rust); }
+    .lede { max-width: 780px; margin: 24px 0 0; color: #495850; font-size: clamp(1.05rem, 2vw, 1.35rem); }
+    .hero-grid {
+      display: grid;
+      grid-template-columns: 1.4fr .6fr;
+      gap: 28px;
+      align-items: end;
+    }
+    .hero-card {
+      padding: 24px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: rgba(255, 253, 247, .82);
+      box-shadow: var(--shadow);
+    }
+    .hero-card strong { display: block; margin-bottom: 8px; color: var(--green); font-size: 1.05rem; }
+    .hero-card p { margin: 0; color: var(--muted); }
+
+    .layout {
+      display: grid;
+      grid-template-columns: 245px minmax(0, 820px);
+      gap: 54px;
+      align-items: start;
+      padding-bottom: 100px;
+    }
+    nav {
+      position: sticky;
+      top: 28px;
+      padding: 20px;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: rgba(255, 253, 247, .88);
+      backdrop-filter: blur(12px);
+    }
+    nav .nav-title { margin: 0 0 10px; font-size: .76rem; font-weight: 850; letter-spacing: .12em; text-transform: uppercase; }
+    nav ol { margin: 0; padding: 0; list-style: none; counter-reset: sections; }
+    nav li { counter-increment: sections; }
+    nav a {
+      display: grid;
+      grid-template-columns: 24px 1fr;
+      gap: 6px;
+      padding: 7px 4px;
+      color: var(--muted);
+      font-size: .88rem;
+      line-height: 1.35;
+      text-decoration: none;
+    }
+    nav a::before { content: counter(sections, decimal-leading-zero); color: #9a6a55; font-size: .72rem; font-weight: 800; }
+    nav a:hover { color: var(--green); }
+
+    main { min-width: 0; }
+    section { scroll-margin-top: 28px; padding: 44px 0; border-top: 1px solid var(--line); }
+    section:first-child { border-top: 0; padding-top: 0; }
+    .kicker { margin: 0 0 8px; color: var(--rust); font-size: .77rem; font-weight: 850; letter-spacing: .12em; text-transform: uppercase; }
+    h2 { margin: 0 0 20px; font-size: clamp(2rem, 4vw, 3rem); }
+    h3 { margin: 32px 0 12px; font-size: 1.45rem; }
+    h4 { margin: 22px 0 8px; font-size: 1.06rem; }
+    p { margin: 0 0 18px; }
+    .muted { color: var(--muted); }
+    .big-idea {
+      margin: 24px 0;
+      padding: 24px 26px;
+      border-left: 5px solid var(--green);
+      border-radius: 0 14px 14px 0;
+      background: var(--green-soft);
+      font-size: 1.1rem;
+    }
+    .warning { border-left-color: var(--rust); background: var(--rust-soft); }
+    .note { padding: 18px 20px; border: 1px solid #ccd7d0; border-radius: 13px; background: #eef6f1; }
+    .note strong { color: var(--green); }
+
+    .flow {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 10px;
+      margin: 28px 0;
+      text-align: center;
+    }
+    .flow div {
+      position: relative;
+      padding: 17px 9px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: var(--panel);
+      font-size: .86rem;
+      font-weight: 750;
+    }
+    .flow div:not(:last-child)::after {
+      position: absolute;
+      z-index: 2;
+      top: 50%;
+      right: -14px;
+      content: "→";
+      color: var(--rust);
+      transform: translateY(-50%);
+    }
+
+    .cards { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; margin: 24px 0; }
+    .card { padding: 21px; border: 1px solid var(--line); border-radius: 14px; background: var(--panel); }
+    .card h3, .card h4 { margin-top: 0; }
+    .card p:last-child { margin-bottom: 0; }
+    .rpc-mark { display: inline-block; margin-bottom: 10px; color: var(--rust); font-family: monospace; font-size: 1.25rem; font-weight: 800; }
+
+    .table-wrap { overflow-x: auto; margin: 24px 0; border: 1px solid var(--line); border-radius: 14px; }
+    table { width: 100%; border-collapse: collapse; background: var(--panel); font-size: .92rem; }
+    th, td { padding: 13px 15px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+    th { color: #33423a; background: #ebece6; font-size: .78rem; letter-spacing: .04em; text-transform: uppercase; }
+    tr:last-child td { border-bottom: 0; }
+
+    .code-wrap { position: relative; margin: 20px 0 28px; }
+    .code-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 9px 13px;
+      border-radius: 13px 13px 0 0;
+      color: #a8c2b2;
+      background: #0d1c16;
+      font-size: .75rem;
+      font-weight: 750;
+      letter-spacing: .04em;
+    }
+    .copy {
+      padding: 5px 9px;
+      border: 1px solid #476356;
+      border-radius: 7px;
+      color: #d6e8db;
+      background: transparent;
+      cursor: pointer;
+      font: inherit;
+    }
+    .copy:hover { background: #203b2f; }
+    pre {
+      overflow-x: auto;
+      margin: 0;
+      padding: 20px;
+      border-radius: 0 0 13px 13px;
+      color: var(--code-ink);
+      background: var(--code);
+      font-size: .84rem;
+      line-height: 1.62;
+      tab-size: 2;
+    }
+    :not(pre) > code { padding: .14em .36em; border-radius: 5px; color: #783820; background: #f0e3d8; font-size: .9em; }
+    .tree { color: #d7eadc; }
+
+    .checkpoint { margin: 28px 0 0; padding: 21px; border: 1px dashed #9cb3a6; border-radius: 14px; }
+    .checkpoint h3 { margin: 0 0 8px; color: var(--green); font-size: 1.05rem; }
+    .checkpoint ul, .clean-list { margin: 8px 0 0; padding-left: 21px; }
+    li { margin: 7px 0; }
+    .steps { counter-reset: step; padding: 0; list-style: none; }
+    .steps > li { position: relative; margin: 18px 0; padding-left: 48px; }
+    .steps > li::before {
+      position: absolute;
+      left: 0;
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      content: counter(step);
+      counter-increment: step;
+      color: white;
+      background: var(--green);
+      font-weight: 800;
+      line-height: 32px;
+      text-align: center;
+    }
+    details { margin: 12px 0; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); }
+    summary { padding: 15px 18px; cursor: pointer; font-weight: 760; }
+    details > div { padding: 0 18px 17px; color: #526058; }
+
+    .quiz label { display: block; margin: 8px 0; padding: 10px 12px; border-radius: 8px; background: #f1f0e9; cursor: pointer; }
+    .answer { display: none; margin-top: 13px; padding: 13px; border-radius: 9px; background: var(--green-soft); }
+    .reveal { margin-top: 10px; padding: 8px 13px; border: 0; border-radius: 8px; color: white; background: var(--green); cursor: pointer; font-weight: 750; }
+    footer { padding: 35px 0 55px; border-top: 1px solid var(--line); color: var(--muted); font-size: .9rem; }
+
+    @media (max-width: 900px) {
+      .hero-grid { grid-template-columns: 1fr; }
+      .layout { grid-template-columns: 1fr; gap: 20px; }
+      nav { position: static; }
+      nav ol { columns: 2; }
+    }
+    @media (max-width: 620px) {
+      .shell { width: min(100% - 22px, 1180px); }
+      .hero { padding-top: 42px; }
+      .cards { grid-template-columns: 1fr; }
+      .flow { grid-template-columns: 1fr; text-align: left; }
+      .flow div:not(:last-child)::after { top: auto; right: 50%; bottom: -18px; transform: translateX(50%) rotate(90deg); }
+      nav ol { columns: 1; }
+      h1 { font-size: 2.8rem; }
+    }
+    @media print {
+      .progress, nav, .copy, .reveal { display: none !important; }
+      body { background: white; font-size: 10pt; }
+      .shell { width: 100%; }
+      .layout, .hero-grid { display: block; }
+      section { break-inside: avoid-page; }
+      pre { white-space: pre-wrap; }
+      a { color: inherit; }
+    }
+  </style>
+</head>
+<body>
+  <div class="progress" aria-hidden="true"></div>
+
+  <header class="hero shell">
+    <p class="eyebrow">Practical field guide · Rust edition</p>
+    <div class="hero-grid">
+      <div>
+        <h1>gRPC, from wire to <span class="accent">working Rust</span></h1>
+        <p class="lede">Learn the ideas, build a small inventory API with <code>tonic</code>, and develop the judgment needed to run gRPC reliably in production.</p>
+      </div>
+      <aside class="hero-card">
+        <strong>What you will be able to do</strong>
+        <p>Design a Protobuf contract, generate Rust types, implement a server and client, choose an RPC shape, handle failures, and evolve the API safely.</p>
+      </aside>
+    </div>
+  </header>
+
+  <div class="shell layout">
+    <nav aria-label="Course contents">
+      <p class="nav-title">Contents</p>
+      <ol>
+        <li><a href="#mental-model">The mental model</a></li>
+        <li><a href="#why">Why gRPC exists</a></li>
+        <li><a href="#building-blocks">Building blocks</a></li>
+        <li><a href="#rpc-shapes">Four RPC shapes</a></li>
+        <li><a href="#rust-stack">The Rust stack</a></li>
+        <li><a href="#workshop">Build an inventory API</a></li>
+        <li><a href="#streaming">Add live stock updates</a></li>
+        <li><a href="#failures">Failures and deadlines</a></li>
+        <li><a href="#security">Authentication and authorization</a></li>
+        <li><a href="#production">Production readiness</a></li>
+        <li><a href="#evolution">Safe API evolution</a></li>
+        <li><a href="#testing">Testing and debugging</a></li>
+        <li><a href="#decisions">Design checklist</a></li>
+        <li><a href="#practice">Practice path</a></li>
+        <li><a href="#sources">Sources</a></li>
+      </ol>
+    </nav>
+
+    <main>
+      <section id="mental-model">
+        <p class="kicker">01 · Start here</p>
+        <h2>The mental model</h2>
+        <p>Suppose one program needs product information owned by another program. With gRPC, the calling program writes code that <em>looks</em> like a local method call:</p>
+        <div class="code-wrap">
+          <div class="code-head"><span>Rust client code</span><button class="copy" type="button">Copy</button></div>
+          <pre><code>let response = client
+    .get_product(GetProductRequest { id: "p-42".into() })
+    .await?;</code></pre>
+        </div>
+        <p>It is not actually local. Generated client code serializes the request, sends it over the network, waits for the remote service, decodes the response, and returns either data or a gRPC status.</p>
+        <div class="flow" aria-label="The journey of a gRPC call">
+          <div>Your Rust code</div>
+          <div>Generated client</div>
+          <div>HTTP/2 network</div>
+          <div>Generated server</div>
+          <div>Your service logic</div>
+        </div>
+        <div class="big-idea"><strong>gRPC is a contract-first way for programs to call each other.</strong> The contract says which operations exist and exactly what data crosses the boundary.</div>
+        <p>The “local call” feeling is convenient, but remember the network: calls may be slow, duplicated, rejected, or interrupted. Proficiency with gRPC is mostly learning to design for those facts.</p>
+      </section>
+
+      <section id="why">
+        <p class="kicker">02 · Background</p>
+        <h2>Why gRPC exists</h2>
+        <p>RPC means <strong>Remote Procedure Call</strong>. The idea predates gRPC: define an operation, generate a client proxy, and hide repetitive networking details. Google developed the internal system Stubby; gRPC brought similar ideas to an open, cross-language ecosystem in 2015.</p>
+        <p>gRPC commonly combines three pieces:</p>
+        <ul class="clean-list">
+          <li><strong>Protocol Buffers</strong> describe services and messages in a language-neutral <code>.proto</code> file.</li>
+          <li><strong>Code generation</strong> turns that contract into typed client and server interfaces.</li>
+          <li><strong>HTTP/2</strong> transports framed binary messages, multiplexes concurrent calls on a connection, and supports long-lived streams.</li>
+        </ul>
+
+        <h3>gRPC and JSON/REST solve overlapping problems</h3>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Question</th><th>gRPC</th><th>Typical JSON/REST API</th></tr></thead>
+            <tbody>
+              <tr><td>Contract</td><td>Explicit schema and service methods</td><td>Often OpenAPI, sometimes convention only</td></tr>
+              <tr><td>Payload</td><td>Compact binary Protobuf by default</td><td>Human-readable JSON</td></tr>
+              <tr><td>Streaming</td><td>Native in both directions</td><td>Usually needs SSE or WebSocket</td></tr>
+              <tr><td>Browser use</td><td>Needs gRPC-Web or a gateway</td><td>Native and simple</td></tr>
+              <tr><td>Debugging by eye</td><td>Needs schema-aware tools</td><td>Easy with curl and browser tools</td></tr>
+              <tr><td>Best fit</td><td>Internal services, typed polyglot systems, real-time streams</td><td>Public/browser APIs and resource-oriented interfaces</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="note"><strong>Rule of thumb:</strong> choose gRPC because its typed contracts, code generation, or streaming help your system—not merely because binary sounds faster. A system can expose gRPC internally and JSON externally through a gateway.</p>
+      </section>
+
+      <section id="building-blocks">
+        <p class="kicker">03 · Vocabulary</p>
+        <h2>The building blocks</h2>
+        <div class="cards">
+          <article class="card"><h3>Service</h3><p>A named collection of remote methods, such as <code>Inventory</code>.</p></article>
+          <article class="card"><h3>Message</h3><p>A typed request or response encoded with Protobuf.</p></article>
+          <article class="card"><h3>Client / stub</h3><p>Generated code that exposes remote methods to the caller.</p></article>
+          <article class="card"><h3>Channel</h3><p>A logical connection to a server. In <code>tonic</code>, channels are cheap to clone and can carry concurrent calls.</p></article>
+          <article class="card"><h3>Metadata</h3><p>Key/value call context: authorization, trace IDs, locale, and similar data—not business payload.</p></article>
+          <article class="card"><h3>Status</h3><p>The structured outcome: a code such as <code>NOT_FOUND</code> plus a safe description and optional details.</p></article>
+          <article class="card"><h3>Deadline</h3><p>The maximum time the client is willing to wait for the entire RPC.</p></article>
+          <article class="card"><h3>Interceptor / layer</h3><p>Reusable behavior around calls, such as authentication, tracing, or rate limiting.</p></article>
+        </div>
+
+        <h3>Protocol Buffer basics</h3>
+        <div class="code-wrap">
+          <div class="code-head"><span>product.proto</span><button class="copy" type="button">Copy</button></div>
+          <pre><code>syntax = "proto3";
+
+package shop.v1;
+
+message Product {
+  string id = 1;
+  string name = 2;
+  int32 stock = 3;
+}
+
+message GetProductRequest {
+  string id = 1;
+}</code></pre>
+        </div>
+        <p>The numbers (<code>= 1</code>, <code>= 2</code>) are wire identities, not positions. Once released, do not change or reuse them. Field names are for people; field numbers are what make old and new programs understand each other.</p>
+        <ul class="clean-list">
+          <li>Scalar fields have defaults in proto3: an absent string reads as <code>""</code>, an absent integer as <code>0</code>.</li>
+          <li>Use <code>optional</code> when “not supplied” must differ from the default value.</li>
+          <li>Use <code>repeated</code> for a list, <code>map&lt;K,V&gt;</code> for a map, and <code>oneof</code> when exactly one variant should be present.</li>
+          <li>Prefer explicit domain messages over an unstructured map.</li>
+        </ul>
+      </section>
+
+      <section id="rpc-shapes">
+        <p class="kicker">04 · Method design</p>
+        <h2>The four RPC shapes</h2>
+        <div class="cards">
+          <article class="card"><span class="rpc-mark">1 → 1</span><h3>Unary</h3><p>One request, one response. Use it for “get product,” “create order,” or most ordinary operations.</p><code>rpc Get(A) returns (B);</code></article>
+          <article class="card"><span class="rpc-mark">1 → ∞</span><h3>Server streaming</h3><p>One request, many responses. Use it for live stock changes, logs, or a large result consumed incrementally.</p><code>rpc Watch(A) returns (stream B);</code></article>
+          <article class="card"><span class="rpc-mark">∞ → 1</span><h3>Client streaming</h3><p>Many requests, one response. Use it for chunks, sensor batches, or incremental upload.</p><code>rpc Upload(stream A) returns (B);</code></article>
+          <article class="card"><span class="rpc-mark">∞ ↔ ∞</span><h3>Bidirectional</h3><p>Both sides stream independently. Use it for collaboration, chat, or control sessions.</p><code>rpc Sync(stream A) returns (stream B);</code></article>
+        </div>
+        <div class="big-idea warning"><strong>Start unary.</strong> Streaming adds lifecycle, backpressure, cancellation, reconnect, and partial-progress questions. Choose it when the use case truly benefits.</div>
+        <p>Messages stay ordered within one stream. Separate RPCs are independent; do not assume ordering between them.</p>
+      </section>
+
+      <section id="rust-stack">
+        <p class="kicker">05 · Ecosystem</p>
+        <h2>The Rust gRPC stack</h2>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Crate / tool</th><th>Job</th></tr></thead>
+            <tbody>
+              <tr><td><code>tonic</code></td><td>gRPC client/server transport and generated service interfaces</td></tr>
+              <tr><td><code>prost</code></td><td>Protocol Buffer message encoding and generated Rust structs</td></tr>
+              <tr><td><code>tonic-prost</code></td><td>Runtime Protobuf codec used by generated <code>tonic</code> code</td></tr>
+              <tr><td><code>tonic-prost-build</code></td><td>Build-time generation from <code>.proto</code> files</td></tr>
+              <tr><td><code>tokio</code></td><td>Asynchronous runtime that drives network tasks</td></tr>
+              <tr><td><code>tower</code></td><td>Composable middleware used underneath <code>tonic</code></td></tr>
+              <tr><td><code>protoc</code></td><td>The Protocol Buffer compiler installed on the development/build machine</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p><code>tonic</code> uses Rust’s async model: awaiting a network operation pauses the task without blocking the OS thread. Generated messages are ordinary Rust structs; generated clients have async methods; generated servers define traits that your application implements.</p>
+      </section>
+
+      <section id="workshop">
+        <p class="kicker">06 · Hands-on workshop</p>
+        <h2>Build a small inventory API</h2>
+        <p>Our real-world example answers: “What product is this, and how many are in stock?” It deliberately keeps storage in memory so the gRPC parts remain visible.</p>
+
+        <h3>1. Target project shape</h3>
+        <div class="code-wrap">
+          <div class="code-head"><span>Directory tree</span><button class="copy" type="button">Copy</button></div>
+          <pre class="tree"><code>rust-grpc/
+├── Cargo.toml
+├── build.rs
+├── proto/
+│   └── inventory.proto
+└── src/
+    ├── bin/
+    │   └── client.rs
+    └── main.rs</code></pre>
+        </div>
+
+        <h3>2. Add dependencies</h3>
+        <p>Install <code>protoc</code> first (<code>brew install protobuf</code> on macOS, or your operating system’s equivalent), then run:</p>
+        <div class="code-wrap">
+          <div class="code-head"><span>Terminal</span><button class="copy" type="button">Copy</button></div>
+          <pre><code>cargo add tonic --features transport
+cargo add tonic-prost prost
+cargo add tokio --features macros,rt-multi-thread
+cargo add --build tonic-prost-build</code></pre>
+        </div>
+        <p class="muted">These commands let Cargo select compatible current versions. This guide targets the <code>tonic</code> 0.14 API family.</p>
+
+        <h3>3. Write the contract</h3>
+        <div class="code-wrap">
+          <div class="code-head"><span>proto/inventory.proto</span><button class="copy" type="button">Copy</button></div>
+          <pre><code>syntax = "proto3";
+
+package inventory.v1;
+
+service Inventory {
+  rpc GetProduct(GetProductRequest) returns (Product);
+}
+
+message GetProductRequest {
+  string id = 1;
+}
+
+message Product {
+  string id = 1;
+  string name = 2;
+  int32 stock = 3;
+}</code></pre>
+        </div>
+
+        <h3>4. Generate Rust code at build time</h3>
+        <div class="code-wrap">
+          <div class="code-head"><span>build.rs</span><button class="copy" type="button">Copy</button></div>
+          <pre><code>fn main() -> Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
+    tonic_prost_build::compile_protos("proto/inventory.proto")?;
+    println!("cargo:rerun-if-changed=proto/inventory.proto");
+    Ok(())
+}</code></pre>
+        </div>
+        <p>Cargo runs this build script before compiling your crate. Generated files go into Cargo’s build output directory; <code>tonic::include_proto!</code> includes them without checking generated code into source control.</p>
+
+        <h3>5. Implement the server</h3>
+        <div class="code-wrap">
+          <div class="code-head"><span>src/main.rs</span><button class="copy" type="button">Copy</button></div>
+          <pre><code>use std::collections::HashMap;
+use tonic::{transport::Server, Request, Response, Status};
+
+pub mod inventory {
+    tonic::include_proto!("inventory.v1");
+}
+
+use inventory::{
+    inventory_server::{Inventory, InventoryServer},
+    GetProductRequest, Product,
+};
+
+#[derive(Debug, Default)]
+struct InventoryService {
+    products: HashMap&lt;String, Product&gt;,
+}
+
+#[tonic::async_trait]
+impl Inventory for InventoryService {
+    async fn get_product(
+        &amp;self,
+        request: Request&lt;GetProductRequest&gt;,
+    ) -&gt; Result&lt;Response&lt;Product&gt;, Status&gt; {
+        let id = request.into_inner().id;
+
+        if id.trim().is_empty() {
+            return Err(Status::invalid_argument("product id is required"));
+        }
+
+        let product = self.products
+            .get(&amp;id)
+            .cloned()
+            .ok_or_else(|| Status::not_found("product does not exist"))?;
+
+        Ok(Response::new(product))
+    }
+}
+
+#[tokio::main]
+async fn main() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
+    let mut products = HashMap::new();
+    products.insert(
+        "p-42".into(),
+        Product {
+            id: "p-42".into(),
+            name: "Mechanical Keyboard".into(),
+            stock: 12,
+        },
+    );
+
+    let address = "[::1]:50051".parse()?;
+    let service = InventoryService { products };
+
+    println!("Inventory server listening on {address}");
+    Server::builder()
+        .add_service(InventoryServer::new(service))
+        .serve(address)
+        .await?;
+
+    Ok(())
+}</code></pre>
+        </div>
+        <p><code>Request&lt;T&gt;</code> holds the message plus metadata and transport context. <code>Response&lt;T&gt;</code> can also carry metadata. <code>Status</code> is the typed failure path.</p>
+
+        <h3>6. Write the client</h3>
+        <div class="code-wrap">
+          <div class="code-head"><span>src/bin/client.rs</span><button class="copy" type="button">Copy</button></div>
+          <pre><code>use std::time::Duration;
+use tonic::Request;
+
+pub mod inventory {
+    tonic::include_proto!("inventory.v1");
+}
+
+use inventory::{inventory_client::InventoryClient, GetProductRequest};
+
+#[tokio::main]
+async fn main() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
+    let mut client = InventoryClient::connect("http://[::1]:50051").await?;
+
+    let mut request = Request::new(GetProductRequest {
+        id: "p-42".into(),
+    });
+    request.set_timeout(Duration::from_secs(2));
+
+    let product = client.get_product(request).await?.into_inner();
+    println!("{}: {} in stock", product.name, product.stock);
+
+    Ok(())
+}</code></pre>
+        </div>
+
+        <h3>7. Run it</h3>
+        <div class="code-wrap">
+          <div class="code-head"><span>Two terminals</span><button class="copy" type="button">Copy</button></div>
+          <pre><code># Terminal 1
+cargo run --bin rust-grpc
+
+# Terminal 2
+cargo run --bin client</code></pre>
+        </div>
+        <p>Expected client output: <code>Mechanical Keyboard: 12 in stock</code>.</p>
+
+        <div class="checkpoint">
+          <h3>Checkpoint: trace one request</h3>
+          <ul>
+            <li>The caller creates a generated <code>GetProductRequest</code>.</li>
+            <li>The generated client encodes it and sends the method path <code>/inventory.v1.Inventory/GetProduct</code>.</li>
+            <li>The server routes it to your trait implementation.</li>
+            <li>Your code returns a <code>Product</code> or <code>Status</code>.</li>
+            <li>The generated layers encode the result and the client decodes it.</li>
+          </ul>
+        </div>
+      </section>
+
+      <section id="streaming">
+        <p class="kicker">07 · Second example</p>
+        <h2>Add live stock updates</h2>
+        <p>A checkout screen may need changes as they happen. Server streaming fits: one subscription request produces many updates.</p>
+        <div class="code-wrap">
+          <div class="code-head"><span>Add to inventory.proto</span><button class="copy" type="button">Copy</button></div>
+          <pre><code>service Inventory {
+  rpc GetProduct(GetProductRequest) returns (Product);
+  rpc WatchStock(WatchStockRequest) returns (stream StockUpdate);
+}
+
+message WatchStockRequest { string product_id = 1; }
+message StockUpdate {
+  string product_id = 1;
+  int32 stock = 2;
+}</code></pre>
+        </div>
+        <p>After rebuilding, the generated trait requires an associated stream type and a method. A simple implementation can send values over a Tokio channel:</p>
+        <div class="code-wrap">
+          <div class="code-head"><span>Core server-streaming pattern</span><button class="copy" type="button">Copy</button></div>
+          <pre><code>use std::pin::Pin;
+use tokio_stream::{wrappers::ReceiverStream, Stream};
+
+type StockStream = Pin&lt;
+    Box&lt;dyn Stream&lt;Item = Result&lt;StockUpdate, Status&gt;&gt; + Send&gt;
+&gt;;
+
+// Inside `impl Inventory for InventoryService`:
+type WatchStockStream = StockStream;
+
+async fn watch_stock(
+    &amp;self,
+    request: Request&lt;WatchStockRequest&gt;,
+) -&gt; Result&lt;Response&lt;Self::WatchStockStream&gt;, Status&gt; {
+    let product_id = request.into_inner().product_id;
+    let (tx, rx) = tokio::sync::mpsc::channel(8);
+
+    tokio::spawn(async move {
+        for stock in [12, 11, 10] {
+            let update = StockUpdate { product_id: product_id.clone(), stock };
+            if tx.send(Ok(update)).await.is_err() {
+                break; // Client disconnected; stop producing work.
+            }
+        }
+    });
+
+    Ok(Response::new(Box::pin(ReceiverStream::new(rx))))
+}</code></pre>
+        </div>
+        <p>This snippet also needs <code>cargo add tokio-stream</code>. The channel capacity of 8 creates <strong>backpressure</strong>: if the network consumer falls behind, producers eventually wait instead of growing memory without limit.</p>
+        <div class="code-wrap">
+          <div class="code-head"><span>Client consumption</span><button class="copy" type="button">Copy</button></div>
+          <pre><code>let response = client
+    .watch_stock(WatchStockRequest { product_id: "p-42".into() })
+    .await?;
+let mut updates = response.into_inner();
+
+while let Some(update) = updates.message().await? {
+    println!("{} now has {}", update.product_id, update.stock);
+}</code></pre>
+        </div>
+        <h3>Questions every stream must answer</h3>
+        <ul class="clean-list">
+          <li>When does it end, and who may cancel it?</li>
+          <li>What happens when a consumer is slow?</li>
+          <li>How will a reconnect resume—sequence number, cursor, or full snapshot?</li>
+          <li>Can an item be delivered again, and is the consumer safe against duplicates?</li>
+          <li>What is the maximum message size and rate?</li>
+        </ul>
+      </section>
+
+      <section id="failures">
+        <p class="kicker">08 · Network reality</p>
+        <h2>Failures, deadlines, and cancellation</h2>
+        <p>A Rust <code>Result</code> maps naturally to gRPC: success becomes a response; failure becomes <code>tonic::Status</code>. Choose the most specific code a caller can act on.</p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Code</th><th>Use it when</th><th>Inventory example</th></tr></thead>
+            <tbody>
+              <tr><td><code>INVALID_ARGUMENT</code></td><td>The input is invalid regardless of server state</td><td>Empty or malformed product ID</td></tr>
+              <tr><td><code>NOT_FOUND</code></td><td>The requested entity is absent</td><td>Unknown product</td></tr>
+              <tr><td><code>ALREADY_EXISTS</code></td><td>A create conflicts with an existing entity</td><td>Duplicate SKU</td></tr>
+              <tr><td><code>FAILED_PRECONDITION</code></td><td>Current state prevents the operation</td><td>Ordering a discontinued item</td></tr>
+              <tr><td><code>UNAUTHENTICATED</code></td><td>Identity is missing or invalid</td><td>Expired token</td></tr>
+              <tr><td><code>PERMISSION_DENIED</code></td><td>Identity is known but lacks access</td><td>Shopper tries an admin method</td></tr>
+              <tr><td><code>RESOURCE_EXHAUSTED</code></td><td>A quota or capacity is exhausted</td><td>Rate limit reached</td></tr>
+              <tr><td><code>UNAVAILABLE</code></td><td>Temporary service/network failure</td><td>Dependency is briefly offline</td></tr>
+              <tr><td><code>INTERNAL</code></td><td>Unexpected invariant or server bug</td><td>Corrupt internal state</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3>Deadlines are part of correctness</h3>
+        <p>Without a deadline, work can outlive the user request and consume resources indefinitely. Set one at the outer client and propagate the remaining budget through downstream calls.</p>
+        <div class="big-idea"><strong>A timeout is local; a deadline is end-to-end intent.</strong> “This attempt may take 200 ms” is different from “the user’s entire operation has 200 ms left.”</div>
+        <p>When a caller disappears or its deadline expires, stop database work and spawned tasks where possible. Returning a response after cancellation only wastes resources.</p>
+
+        <h3>Retries require idempotency</h3>
+        <p>A failed call may have reached the server even if the response never reached the client. Reads are commonly safe to retry. Mutations need deliberate semantics:</p>
+        <ul class="clean-list">
+          <li>Use a client-generated idempotency key for operations such as “create payment.”</li>
+          <li>Store the key with the result so a duplicate request returns the original result.</li>
+          <li>Retry only transient codes such as <code>UNAVAILABLE</code>, with exponential backoff and jitter.</li>
+          <li>Keep retries inside the original deadline and cap the number of attempts.</li>
+        </ul>
+      </section>
+
+      <section id="security">
+        <p class="kicker">09 · Security</p>
+        <h2>Apply authentication and authorization</h2>
+        <p>Security is a sequence of separate decisions. TLS protects the connection. Authentication establishes <em>who</em> is calling. Authorization decides <em>what</em> that identity may do. A secure service normally needs all three.</p>
+
+        <div class="flow" aria-label="The security checks performed for a gRPC request">
+          <div>Client + credential</div>
+          <div>TLS or mTLS</div>
+          <div>Authenticate</div>
+          <div>Authorize</div>
+          <div>Run handler</div>
+        </div>
+
+        <div class="cards">
+          <article class="card"><h3>Authentication</h3><p>“This caller is user <code>u-123</code> from tenant <code>t-7</code>.” Validate a token or client certificate and create a trusted identity.</p></article>
+          <article class="card"><h3>Authorization</h3><p>“User <code>u-123</code> may read this product but may not adjust its stock.” Evaluate permissions against both the method and resource.</p></article>
+        </div>
+
+        <h3>The common production pattern</h3>
+        <ol class="steps">
+          <li><strong>Encrypt the channel.</strong> Use TLS for every connection outside local development. Use mutual TLS when services must authenticate each other.</li>
+          <li><strong>Obtain an access token.</strong> A user-facing client normally signs in through an OAuth 2.0/OpenID Connect identity provider and receives a short-lived access token.</li>
+          <li><strong>Attach the credential.</strong> Send the token in gRPC metadata using the standard <code>authorization: Bearer …</code> entry.</li>
+          <li><strong>Authenticate centrally.</strong> An interceptor or Tower middleware validates the credential once and stores a typed <code>Principal</code> in request extensions.</li>
+          <li><strong>Authorize close to the data.</strong> The handler checks scopes or roles, then checks ownership, tenant, or other resource attributes.</li>
+        </ol>
+
+        <h3>1. Send an access token from the client</h3>
+        <div class="code-wrap">
+          <div class="code-head"><span>Attach authorization metadata</span><button class="copy" type="button">Copy</button></div>
+          <pre><code>use tonic::{metadata::MetadataValue, Request};
+
+let mut request = Request::new(GetProductRequest {
+    id: "p-42".into(),
+});
+
+let value = format!("Bearer {access_token}")
+    .parse::&lt;MetadataValue&lt;_&gt;&gt;()?;
+
+request.metadata_mut().insert("authorization", value);
+let response = client.get_product(request).await?;</code></pre>
+        </div>
+        <p>A bearer token is usable by whoever possesses it, so never send one over an unencrypted channel or write it to logs. Use an <em>access token</em> intended for this API—not an ID token intended only to describe a login.</p>
+
+        <h3>2. Authenticate in a <code>tonic</code> interceptor</h3>
+        <p>The interceptor below shows the boundary. The fictional <code>verify_access_token</code> represents a maintained JWT/OIDC library configured for your identity provider.</p>
+        <div class="code-wrap">
+          <div class="code-head"><span>Server authentication boundary</span><button class="copy" type="button">Copy</button></div>
+          <pre><code>use tonic::{Request, Status};
+
+#[derive(Clone, Debug)]
+struct Principal {
+    subject: String,
+    tenant_id: String,
+    permissions: Vec&lt;String&gt;,
+}
+
+fn authenticate(
+    mut request: Request&lt;()&gt;,
+) -&gt; Result&lt;Request&lt;()&gt;, Status&gt; {
+    let header = request
+        .metadata()
+        .get("authorization")
+        .ok_or_else(|| Status::unauthenticated("access token required"))?
+        .to_str()
+        .map_err(|_| Status::unauthenticated("invalid authorization metadata"))?;
+
+    let token = header
+        .strip_prefix("Bearer ")
+        .ok_or_else(|| Status::unauthenticated("bearer token required"))?;
+
+    let claims = verify_access_token(token)
+        .map_err(|_| Status::unauthenticated("invalid access token"))?;
+
+    request.extensions_mut().insert(Principal {
+        subject: claims.subject,
+        tenant_id: claims.tenant_id,
+        permissions: claims.permissions,
+    });
+
+    Ok(request)
+}</code></pre>
+        </div>
+        <p>Register it around the generated service:</p>
+        <div class="code-wrap">
+          <div class="code-head"><span>Apply the interceptor</span><button class="copy" type="button">Copy</button></div>
+          <pre><code>let inventory = InventoryServer::with_interceptor(
+    InventoryService::new(),
+    authenticate,
+);
+
+Server::builder()
+    .add_service(inventory)
+    .serve(address)
+    .await?;</code></pre>
+        </div>
+        <p>Token validation must check the signature, trusted issuer (<code>iss</code>), expected audience (<code>aud</code>), expiration (<code>exp</code>), allowed algorithm, and any required claims. Cache signing keys and refresh them safely; do not fetch keys from the identity provider during every request. A <code>tonic</code> interceptor is synchronous, so use Tower middleware when authentication requires asynchronous work or access to the response.</p>
+
+        <h3>3. Authorize the operation and its resource</h3>
+        <div class="code-wrap">
+          <div class="code-head"><span>Authorization in a service method</span><button class="copy" type="button">Copy</button></div>
+          <pre><code>async fn adjust_stock(
+    &amp;self,
+    request: Request&lt;AdjustStockRequest&gt;,
+) -&gt; Result&lt;Response&lt;Product&gt;, Status&gt; {
+    let principal = request
+        .extensions()
+        .get::&lt;Principal&gt;()
+        .cloned()
+        .ok_or_else(|| Status::unauthenticated("identity missing"))?;
+
+    if !principal.permissions.iter().any(|p| p == "inventory:write") {
+        return Err(Status::permission_denied("write permission required"));
+    }
+
+    let input = request.into_inner();
+    let product = self.repository
+        .find(&amp;input.product_id)
+        .await
+        .map_err(|_| Status::internal("repository lookup failed"))?;
+
+    // Object-level authorization prevents cross-tenant access.
+    if product.tenant_id != principal.tenant_id {
+        return Err(Status::permission_denied("product belongs to another tenant"));
+    }
+
+    let updated = self.repository
+        .adjust(product, input.change)
+        .await
+        .map_err(|_| Status::internal("stock update failed"))?;
+    Ok(Response::new(updated))
+}</code></pre>
+        </div>
+        <div class="big-idea warning"><strong>Checking only the RPC method is not enough.</strong> A caller allowed to read one account must not be able to read every account by changing an ID. Always enforce resource ownership or tenant boundaries after loading the resource.</div>
+
+        <h3>4. Configure TLS and optional mTLS</h3>
+        <p>Enable a current <code>tonic</code> TLS backend, for example <code>cargo add tonic --features transport,tls-ring</code>, and configure the server identity:</p>
+        <div class="code-wrap">
+          <div class="code-head"><span>TLS server configuration</span><button class="copy" type="button">Copy</button></div>
+          <pre><code>use tonic::transport::{Identity, Server, ServerTlsConfig};
+
+let cert = std::fs::read("server.pem")?;
+let key = std::fs::read("server.key")?;
+let identity = Identity::from_pem(cert, key);
+
+Server::builder()
+    .tls_config(ServerTlsConfig::new().identity(identity))?
+    .add_service(inventory)
+    .serve(address)
+    .await?;</code></pre>
+        </div>
+        <p>For service-to-service mTLS, require certificates signed by your client certificate authority:</p>
+        <div class="code-wrap">
+          <div class="code-head"><span>Add client-certificate verification</span><button class="copy" type="button">Copy</button></div>
+          <pre><code>use tonic::transport::Certificate;
+
+let client_ca = std::fs::read("client-ca.pem")?;
+let tls = ServerTlsConfig::new()
+    .identity(identity)
+    .client_ca_root(Certificate::from_pem(client_ca));
+
+Server::builder()
+    .tls_config(tls)?
+    .add_service(inventory)
+    .serve(address)
+    .await?;</code></pre>
+        </div>
+
+        <h3>Choose an authorization model</h3>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Model</th><th>Example</th><th>Good fit</th></tr></thead>
+            <tbody>
+              <tr><td>Roles (RBAC)</td><td><code>admin</code>, <code>viewer</code></td><td>Small systems with stable job functions</td></tr>
+              <tr><td>Permissions/scopes</td><td><code>inventory:read</code>, <code>inventory:write</code></td><td>Precise API capabilities and OAuth tokens</td></tr>
+              <tr><td>Attributes (ABAC)</td><td>Tenant, owner, region, or resource state</td><td>Multi-tenant or context-sensitive rules</td></tr>
+              <tr><td>Relationships</td><td>Owner, member, editor, parent organization</td><td>Sharing and collaboration products</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>A practical default combines scopes for coarse permission with tenant or ownership checks for the resource. Move policy evaluation into a dedicated policy component when rules become numerous or shared across services.</p>
+
+        <h3>Gateway trust boundaries</h3>
+        <p>A trusted gateway may validate external tokens and forward identity to internal services. If you use this pattern, prevent direct public access to the services, protect gateway-to-service traffic with mTLS or signed internal tokens, and strip user-supplied identity headers before inserting trusted ones. Never trust an arbitrary <code>x-user-id</code> received from the public network.</p>
+
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Outcome</th><th>gRPC status</th></tr></thead>
+            <tbody>
+              <tr><td>Credential is missing, malformed, invalid, or expired</td><td><code>UNAUTHENTICATED</code></td></tr>
+              <tr><td>Identity is valid but lacks permission</td><td><code>PERMISSION_DENIED</code></td></tr>
+              <tr><td>Authorized caller requests an entity that does not exist</td><td><code>NOT_FOUND</code></td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="checkpoint">
+          <h3>Security checklist</h3>
+          <ul>
+            <li>TLS is enabled and certificate verification is not disabled.</li>
+            <li>Access tokens have a short lifetime and the correct API audience.</li>
+            <li>Signature, issuer, audience, expiry, and algorithm are validated.</li>
+            <li>Authentication creates a typed principal; handlers do not trust raw headers.</li>
+            <li>Both method permission and object/tenant access are enforced.</li>
+            <li>Tokens, passwords, private keys, and sensitive payloads are never logged.</li>
+            <li>Authentication failures and sensitive mutations are audited without recording secrets.</li>
+          </ul>
+        </div>
+      </section>
+
+      <section id="production">
+        <p class="kicker">10 · Operating the service</p>
+        <h2>Production readiness</h2>
+
+        <h3>Observability</h3>
+        <p>Instrument each RPC with:</p>
+        <ul class="clean-list">
+          <li><strong>Metrics:</strong> request count, latency histogram, status code, in-flight calls, and stream duration.</li>
+          <li><strong>Traces:</strong> propagate trace context in metadata and create a span around each method.</li>
+          <li><strong>Logs:</strong> method, safe entity identifiers, duration, and status—not entire sensitive payloads.</li>
+        </ul>
+        <p>Watch p50, p95, and p99 latency. An average can hide the slow requests users notice.</p>
+
+        <h3>Resource control</h3>
+        <ul class="clean-list">
+          <li>Limit inbound/outbound message sizes and validate repeated-field counts.</li>
+          <li>Bound concurrency and stream/channel buffers.</li>
+          <li>Apply per-client rate limits and global load shedding.</li>
+          <li>Reuse channels; do not open a fresh HTTP/2 connection for every call.</li>
+          <li>Configure keepalive carefully—aggressive pings can overload peers or proxies.</li>
+          <li>Gracefully stop accepting work, let short calls finish, then cancel at a shutdown deadline.</li>
+        </ul>
+
+        <h3>Deployment path</h3>
+        <p>Confirm that every proxy, ingress, and load balancer in the path supports gRPC over HTTP/2. Add the standard gRPC health service for load balancers and orchestration. Reflection is extremely useful for internal debugging, but expose it deliberately.</p>
+      </section>
+
+      <section id="evolution">
+        <p class="kicker">11 · Compatibility</p>
+        <h2>Evolve the API without breaking callers</h2>
+        <p>Distributed programs do not upgrade at the same instant. For a while, old clients talk to new servers and new clients talk to old servers. Protobuf supports this well if you follow its rules.</p>
+        <div class="cards">
+          <article class="card"><h3>Usually safe</h3><ul><li>Add a new field with a new number.</li><li>Add a new method.</li><li>Add a new enum value when consumers handle unknown values.</li><li>Rename a field in binary-only use, though it may break JSON/text users.</li></ul></article>
+          <article class="card"><h3>Dangerous</h3><ul><li>Change an existing field number.</li><li>Reuse a deleted field number.</li><li>Change a field to an incompatible type.</li><li>Change meaning while keeping the same shape.</li></ul></article>
+        </div>
+        <div class="code-wrap">
+          <div class="code-head"><span>Reserve removed fields</span><button class="copy" type="button">Copy</button></div>
+          <pre><code>message Product {
+  reserved 4;
+  reserved "legacy_category";
+
+  string id = 1;
+  string name = 2;
+  int32 stock = 3;
+  optional string description = 5;
+}</code></pre>
+        </div>
+        <p>Use a versioned package such as <code>inventory.v1</code>. Introduce <code>v2</code> only for a genuinely incompatible redesign, and operate both versions during migration. Compatibility checks belong in CI—tools such as Buf can detect breaking schema changes.</p>
+      </section>
+
+      <section id="testing">
+        <p class="kicker">12 · Confidence</p>
+        <h2>Testing and debugging</h2>
+        <ol class="steps">
+          <li><strong>Unit-test domain logic</strong> separately from gRPC. Plain functions are fast and easy to exercise.</li>
+          <li><strong>Test the service implementation</strong> by constructing <code>Request&lt;T&gt;</code> directly and asserting the response or status.</li>
+          <li><strong>Run an integration test</strong> with a server on an ephemeral port and a generated client. This covers encoding, routing, and transport.</li>
+          <li><strong>Check the contract in CI</strong> for formatting and backward compatibility.</li>
+          <li><strong>Test unhappy paths:</strong> invalid data, missing auth, deadlines, disconnects, slow streams, oversized messages, and graceful shutdown.</li>
+        </ol>
+
+        <div class="code-wrap">
+          <div class="code-head"><span>Direct service test sketch</span><button class="copy" type="button">Copy</button></div>
+          <pre><code>#[tokio::test]
+async fn unknown_product_is_not_found() {
+    let service = InventoryService::default();
+    let request = Request::new(GetProductRequest { id: "missing".into() });
+
+    let status = service.get_product(request).await.unwrap_err();
+    assert_eq!(status.code(), tonic::Code::NotFound);
+}</code></pre>
+        </div>
+        <p>For manual inspection, use a schema-aware client such as <code>grpcurl</code> or <code>grpcui</code>. Server reflection lets these tools discover contracts; without reflection, pass the <code>.proto</code> files explicitly.</p>
+
+        <details>
+          <summary>“My generated module cannot be found.”</summary>
+          <div>Ensure the string in <code>tonic::include_proto!("inventory.v1")</code> exactly matches the proto <code>package</code>. Also check that <code>build.rs</code> ran successfully.</div>
+        </details>
+        <details>
+          <summary>“The build cannot find protoc.”</summary>
+          <div>Install the Protocol Buffer compiler and verify <code>protoc --version</code> works in the same environment that runs Cargo.</div>
+        </details>
+        <details>
+          <summary>“The client reports UNIMPLEMENTED.”</summary>
+          <div>Usually the method path or deployed service version differs. Confirm package, service, method, and that the correct server build is running.</div>
+        </details>
+        <details>
+          <summary>“It works locally but not through the proxy.”</summary>
+          <div>Verify end-to-end HTTP/2 and gRPC support, TLS/ALPN configuration, idle timeouts, maximum body size, and whether the proxy supports long-lived streams.</div>
+        </details>
+      </section>
+
+      <section id="decisions">
+        <p class="kicker">13 · Working judgment</p>
+        <h2>A design checklist</h2>
+        <p>Before shipping a method, answer these questions:</p>
+        <div class="cards">
+          <article class="card"><h4>Contract</h4><p>Are names precise? Is presence meaningful? Are units explicit? Are fields bounded?</p></article>
+          <article class="card"><h4>RPC shape</h4><p>Does unary suffice? If streaming, how does it end, resume, and apply backpressure?</p></article>
+          <article class="card"><h4>Failure</h4><p>Which status codes can occur? What can callers retry? Is mutation idempotent?</p></article>
+          <article class="card"><h4>Time</h4><p>What deadline should callers use? Is cancellation propagated to dependencies?</p></article>
+          <article class="card"><h4>Security</h4><p>How are peer identity, authorization, TLS, secrets, and sensitive fields handled?</p></article>
+          <article class="card"><h4>Operations</h4><p>Are there limits, health checks, graceful shutdown, metrics, tracing, and compatibility checks?</p></article>
+        </div>
+
+        <h3>The most common mistakes</h3>
+        <ul class="clean-list">
+          <li>Treating a network call as if it cannot partially fail.</li>
+          <li>Omitting deadlines and allowing unbounded work.</li>
+          <li>Retrying writes without idempotency.</li>
+          <li>Using <code>INTERNAL</code> for every domain error.</li>
+          <li>Making one giant message or one never-ending unbounded stream.</li>
+          <li>Changing or reusing Protobuf field numbers.</li>
+          <li>Logging whole requests that contain credentials or personal data.</li>
+          <li>Assuming browsers and every HTTP proxy speak native gRPC.</li>
+        </ul>
+      </section>
+
+      <section id="practice">
+        <p class="kicker">14 · Make it stick</p>
+        <h2>A practical learning path</h2>
+        <ol class="steps">
+          <li>Run the unary inventory example and inspect the generated documentation with <code>cargo doc --open</code>.</li>
+          <li>Add <code>ListProducts</code> with pagination: <code>page_size</code> and opaque <code>page_token</code>.</li>
+          <li>Add <code>AdjustStock</code>. Validate inputs and decide how to prevent duplicate adjustments.</li>
+          <li>Add <code>WatchStock</code>; disconnect the client halfway through and verify the producer stops.</li>
+          <li>Add an authorization interceptor and a two-second client deadline.</li>
+          <li>Add tracing, a health endpoint, graceful shutdown, and an integration test.</li>
+          <li>Make a safe schema change, then deliberately try a breaking field-number change and let CI catch it.</li>
+        </ol>
+
+        <div class="checkpoint quiz">
+          <h3>Quick knowledge check</h3>
+          <p>A client calls <code>AdjustStock</code>. The server commits the change, but the response is lost. Should the client blindly retry?</p>
+          <label><input type="radio" name="quiz"> Yes—every gRPC error is safe to retry.</label>
+          <label><input type="radio" name="quiz"> No—first make the operation idempotent or use a deduplication key.</label>
+          <button class="reveal" type="button" aria-expanded="false">Reveal answer</button>
+          <div class="answer"><strong>Second answer.</strong> The caller cannot know whether the server committed. A blind retry could adjust stock twice. Use a stable operation ID and return the stored result for duplicates.</div>
+        </div>
+
+        <div class="big-idea"><strong>You are proficient when you can explain not only how to make a call, but also what happens when it is slow, duplicated, cancelled, incompatible, or observed in production.</strong></div>
+      </section>
+
+      <section id="sources">
+        <p class="kicker">15 · Continue learning</p>
+        <h2>Primary references</h2>
+        <ul class="clean-list">
+          <li><a href="https://grpc.io/docs/what-is-grpc/core-concepts/">gRPC core concepts, architecture, and lifecycle</a></li>
+          <li><a href="https://grpc.io/docs/guides/status-codes/">Official gRPC status code guide</a></li>
+          <li><a href="https://grpc.io/docs/guides/auth/">Official gRPC authentication guide</a></li>
+          <li><a href="https://grpc.io/docs/guides/metadata/">Official gRPC metadata guide</a></li>
+          <li><a href="https://protobuf.dev/programming-guides/proto3/">Protocol Buffers proto3 language guide</a></li>
+          <li><a href="https://docs.rs/tonic/latest/tonic/">tonic API documentation</a></li>
+          <li><a href="https://docs.rs/tonic/latest/tonic/service/trait.Interceptor.html">tonic interceptor documentation</a></li>
+          <li><a href="https://docs.rs/tonic/latest/tonic/transport/server/struct.ServerTlsConfig.html">tonic server TLS configuration</a></li>
+          <li><a href="https://docs.rs/tonic-prost-build/latest/tonic_prost_build/">tonic-prost-build documentation</a></li>
+          <li><a href="https://github.com/hyperium/tonic/tree/master/examples">Official tonic examples</a></li>
+        </ul>
+        <p class="muted">Last reviewed against the linked documentation: October 2026. Crate APIs evolve; use compatible versions across the <code>tonic</code> family.</p>
+      </section>
+    </main>
+  </div>
+
+  <footer>
+    <div class="shell">Built as a self-contained learning artifact. It works offline, prints cleanly, and uses no external scripts or fonts.</div>
+  </footer>
+
+  <script>
+    const progress = document.querySelector('.progress');
+    const updateProgress = () => {
+      const height = document.documentElement.scrollHeight - window.innerHeight;
+      progress.style.width = `${height > 0 ? (window.scrollY / height) * 100 : 0}%`;
+    };
+    addEventListener('scroll', updateProgress, { passive: true });
+    updateProgress();
+
+    document.querySelectorAll('.copy').forEach((button) => {
+      button.addEventListener('click', async () => {
+        const code = button.closest('.code-wrap').querySelector('code').innerText;
+        try {
+          await navigator.clipboard.writeText(code);
+          button.textContent = 'Copied';
+          setTimeout(() => { button.textContent = 'Copy'; }, 1400);
+        } catch {
+          button.textContent = 'Select text';
+        }
+      });
+    });
+
+    document.querySelector('.reveal').addEventListener('click', (event) => {
+      const answer = event.currentTarget.nextElementSibling;
+      const isOpen = answer.style.display === 'block';
+      answer.style.display = isOpen ? 'none' : 'block';
+      event.currentTarget.textContent = isOpen ? 'Reveal answer' : 'Hide answer';
+      event.currentTarget.setAttribute('aria-expanded', String(!isOpen));
+    });
+  </script>
+</body>
+</html>

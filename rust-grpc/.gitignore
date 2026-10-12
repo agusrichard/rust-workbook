@@ -1,0 +1,7 @@
+target/
+certs/
+data/
+*.db
+*.key
+*.key.pem
+.env
