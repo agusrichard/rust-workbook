@@ -1,0 +1,1358 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="A beginner-friendly guide to access-token authentication and the OAuth Backend-for-Frontend pattern with React and Rust.">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='30' fill='%231c4336'/%3E%3Cpath d='M20 32l8 8 16-18' fill='none' stroke='%23fff' stroke-width='6'/%3E%3C/svg%3E">
+  <title>How Authentication Works — Rust + React</title>
+  <style>
+    :root {
+      --ink: #1f2925;
+      --muted: #5e6b65;
+      --green: #1c5a43;
+      --green-light: #e7f2eb;
+      --orange: #b94d31;
+      --orange-light: #faeee9;
+      --blue-light: #eaf2f8;
+      --paper: #fffefb;
+      --soft: #f5f3ed;
+      --line: #dddcd4;
+      --code: #17211d;
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      color: var(--ink);
+      background: var(--paper);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font-size: 17px;
+      line-height: 1.75;
+    }
+    a { color: var(--green); }
+    code { font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace; }
+    img, svg { max-width: 100%; }
+
+    .skip-link {
+      position: fixed;
+      top: 12px;
+      left: 12px;
+      z-index: 100;
+      transform: translateY(-150%);
+      padding: 8px 12px;
+      border-radius: 6px;
+      background: var(--ink);
+      color: white;
+    }
+    .skip-link:focus { transform: none; }
+
+    .topbar { border-bottom: 1px solid var(--line); background: rgba(255, 254, 251, .95); }
+    .topbar-inner {
+      width: min(900px, calc(100% - 36px));
+      min-height: 58px;
+      margin: auto;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+    }
+    .brand { color: var(--ink); text-decoration: none; font-weight: 800; }
+    .topbar nav { display: flex; gap: 20px; }
+    .topbar nav a { color: var(--muted); font-size: 14px; font-weight: 650; text-decoration: none; }
+    .topbar nav a:hover { color: var(--green); }
+
+    .article { width: min(900px, calc(100% - 36px)); margin: auto; }
+    .hero { padding: 72px 0 54px; }
+    .label {
+      margin: 0 0 12px;
+      color: var(--green);
+      font-size: 13px;
+      font-weight: 800;
+      letter-spacing: .11em;
+      text-transform: uppercase;
+    }
+    h1, h2, h3 { line-height: 1.2; letter-spacing: -.025em; }
+    h1 {
+      max-width: 780px;
+      margin: 0 0 24px;
+      font-family: Georgia, "Times New Roman", serif;
+      font-size: clamp(42px, 7vw, 68px);
+      font-weight: 500;
+    }
+    .lead { max-width: 740px; margin: 0; color: var(--muted); font-size: 21px; line-height: 1.6; }
+
+    .reading-note {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 16px;
+      margin-top: 36px;
+      padding: 20px 22px;
+      border: 1px solid #bed8c8;
+      border-radius: 12px;
+      background: var(--green-light);
+    }
+    .reading-note .icon {
+      width: 30px;
+      height: 30px;
+      display: grid;
+      place-items: center;
+      border-radius: 50%;
+      background: var(--green);
+      color: white;
+      font-size: 14px;
+      font-weight: 900;
+    }
+    .reading-note strong { display: block; margin-bottom: 3px; }
+    .reading-note p { margin: 0; color: #3e5b4d; font-size: 15px; }
+
+    .toc {
+      margin: 0 0 60px;
+      padding: 24px 28px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: var(--soft);
+    }
+    .toc strong { display: block; margin-bottom: 8px; }
+    .toc ol { margin: 0; padding-left: 22px; columns: 2; column-gap: 36px; }
+    .toc li { margin: 5px 0; break-inside: avoid; }
+    .toc a { color: var(--ink); text-decoration-color: #9aada4; text-underline-offset: 3px; }
+
+    section { padding: 58px 0; border-top: 1px solid var(--line); }
+    h2 {
+      max-width: 720px;
+      margin: 0 0 18px;
+      font-family: Georgia, "Times New Roman", serif;
+      font-size: clamp(32px, 5vw, 46px);
+      font-weight: 500;
+    }
+    h3 { margin: 0 0 9px; font-size: 23px; }
+    p { margin: 0 0 20px; }
+    .section-intro { max-width: 720px; color: var(--muted); font-size: 18px; }
+
+    .plain-box {
+      margin: 28px 0;
+      padding: 24px 26px;
+      border-left: 4px solid var(--green);
+      border-radius: 0 10px 10px 0;
+      background: var(--green-light);
+    }
+    .plain-box strong { display: block; margin-bottom: 6px; }
+    .plain-box p:last-child { margin-bottom: 0; }
+
+    .diagram {
+      margin: 32px 0 18px;
+      padding: 26px;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: var(--soft);
+    }
+    .actors { display: grid; grid-template-columns: 1fr auto 1fr auto 1fr; gap: 12px; align-items: center; }
+    .actor {
+      min-height: 120px;
+      display: grid;
+      align-content: center;
+      justify-items: center;
+      padding: 18px;
+      border: 2px solid;
+      border-radius: 12px;
+      text-align: center;
+    }
+    .actor.browser { border-color: #7ea4bf; background: var(--blue-light); }
+    .actor.api { border-color: #76a88f; background: var(--green-light); }
+    .actor.store { border-color: #d39a86; background: var(--orange-light); }
+    .actor-icon { margin-bottom: 4px; font-size: 28px; }
+    .actor strong { display: block; }
+    .actor span { color: var(--muted); font-size: 13px; line-height: 1.35; }
+    .big-arrow { color: #7c8882; font-size: 30px; font-weight: 800; }
+    figcaption { margin-top: 15px; color: var(--muted); font-size: 14px; text-align: center; }
+
+    .flow-list { margin: 32px 0 0; padding: 0; list-style: none; counter-reset: flow; }
+    .flow-list li { counter-increment: flow; position: relative; padding: 0 0 34px 66px; }
+    .flow-list li:not(:last-child)::after {
+      content: "";
+      position: absolute;
+      left: 22px;
+      top: 48px;
+      bottom: 6px;
+      width: 2px;
+      background: #ced8d3;
+    }
+    .flow-list li::before {
+      content: counter(flow);
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 46px;
+      height: 46px;
+      display: grid;
+      place-items: center;
+      border-radius: 50%;
+      background: var(--green);
+      color: white;
+      font-weight: 850;
+    }
+    .flow-list p { margin-bottom: 10px; color: var(--muted); }
+    .request {
+      display: inline-block;
+      padding: 4px 9px;
+      border: 1px solid #d4d2ca;
+      border-radius: 6px;
+      background: white;
+      color: var(--orange);
+      font: 700 13px "SFMono-Regular", Consolas, monospace;
+    }
+
+    .token-table {
+      width: 100%;
+      margin-top: 28px;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      font-size: 15px;
+    }
+    .token-table table { width: 100%; border-collapse: collapse; }
+    .token-table th, .token-table td { padding: 14px 16px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+    .token-table th { background: var(--soft); font-size: 13px; }
+    .token-table tr:last-child td { border-bottom: 0; }
+    .token-table td:first-child { font-weight: 750; }
+
+    .warning {
+      margin: 24px 0 0;
+      padding: 20px 22px;
+      border: 1px solid #e6b9aa;
+      border-radius: 10px;
+      background: var(--orange-light);
+    }
+    .warning strong { color: #843b28; }
+    .warning p { margin: 4px 0 0; color: #704c41; }
+
+    .decision-box {
+      margin: 28px 0 34px;
+      padding: 24px 26px;
+      border: 1px solid #bfd1dc;
+      border-radius: 12px;
+      background: var(--blue-light);
+    }
+    .decision-box strong { display: block; margin-bottom: 8px; color: #274e69; }
+    .decision-box ul { margin: 0; padding-left: 20px; }
+    .decision-box li { margin: 6px 0; }
+
+    .track-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 18px;
+      margin: 30px 0;
+    }
+    .track-card {
+      display: flex;
+      flex-direction: column;
+      padding: 26px;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: white;
+    }
+    .track-card.token { border-top: 5px solid #5f8ca8; }
+    .track-card.bff { border-top: 5px solid var(--green); }
+    .track-kicker {
+      margin-bottom: 8px;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 850;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+    }
+    .track-card p { color: var(--muted); }
+    .track-card a {
+      margin-top: auto;
+      font-size: 14px;
+      font-weight: 800;
+      text-underline-offset: 3px;
+    }
+
+    .diagram-wide {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+      align-items: stretch;
+    }
+    .diagram-wide .actor { min-height: 140px; padding: 14px; }
+    .diagram-wide .actor.idp { border-color: #b59bce; background: #f1ebf7; }
+
+    .sequence {
+      display: grid;
+      grid-template-columns: 46px 1fr;
+      gap: 0 18px;
+      margin: 30px 0 0;
+      background: linear-gradient(#ced8d3, #ced8d3) 20px 42px / 2px calc(100% - 84px) no-repeat;
+    }
+    .sequence .step-number {
+      position: relative;
+      width: 42px;
+      height: 42px;
+      display: grid;
+      place-items: center;
+      border-radius: 50%;
+      background: var(--green);
+      color: white;
+      font-size: 14px;
+      font-weight: 850;
+    }
+    .sequence .step-copy { padding: 2px 0 30px; }
+    .sequence .step-copy p { margin: 6px 0 10px; color: var(--muted); }
+
+    .term-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+      margin: 26px 0;
+    }
+    .term {
+      padding: 20px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: var(--soft);
+    }
+    .term strong { display: block; margin-bottom: 5px; }
+    .term p { margin: 0; color: var(--muted); font-size: 14px; line-height: 1.55; }
+
+    .comparison-table {
+      width: 100%;
+      margin-top: 28px;
+      overflow-x: auto;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+    }
+    .comparison-table table { width: 100%; min-width: 690px; border-collapse: collapse; }
+    .comparison-table th, .comparison-table td {
+      padding: 15px 16px;
+      border-bottom: 1px solid var(--line);
+      text-align: left;
+      vertical-align: top;
+    }
+    .comparison-table th { background: var(--soft); font-size: 13px; }
+    .comparison-table td:first-child { width: 170px; font-weight: 750; }
+    .comparison-table tr:last-child td { border-bottom: 0; }
+
+    .subsection {
+      margin-top: 48px;
+      padding-top: 38px;
+      border-top: 1px dashed #c8cac3;
+    }
+    .subsection-label {
+      margin-bottom: 8px;
+      color: var(--green);
+      font-size: 12px;
+      font-weight: 850;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+    }
+
+    .approach-list { display: grid; gap: 18px; margin-top: 30px; }
+    .approach-card {
+      padding: 26px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: white;
+    }
+    .approach-card.preferred { border-color: #89ad99; box-shadow: inset 4px 0 0 var(--green); }
+    .approach-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; margin-bottom: 8px; }
+    .approach-heading h3 { margin: 0; }
+    .badge {
+      flex: 0 0 auto;
+      padding: 4px 9px;
+      border-radius: 999px;
+      background: var(--green-light);
+      color: var(--green);
+      font-size: 11px;
+      font-weight: 850;
+      letter-spacing: .04em;
+      text-transform: uppercase;
+    }
+    .badge.neutral { background: var(--soft); color: var(--muted); }
+    .pattern-flow {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 7px;
+      margin: 18px 0;
+      color: var(--muted);
+      font-size: 13px;
+    }
+    .pattern-flow span:not(.flow-arrow) {
+      padding: 5px 9px;
+      border: 1px solid #d5d6d0;
+      border-radius: 6px;
+      background: var(--soft);
+      color: var(--ink);
+      font-weight: 700;
+    }
+    .flow-arrow { color: #84918b; }
+    .approach-facts {
+      display: grid;
+      grid-template-columns: 140px 1fr;
+      margin: 0;
+      border-top: 1px solid var(--line);
+      font-size: 15px;
+    }
+    .approach-facts dt, .approach-facts dd { padding: 10px 0; border-bottom: 1px solid var(--line); }
+    .approach-facts dt { color: var(--muted); }
+    .approach-facts dd { margin: 0; }
+    .approach-facts dt:last-of-type, .approach-facts dd:last-of-type { border-bottom: 0; }
+
+    .avoid-list { margin: 28px 0 0; padding: 0; list-style: none; }
+    .avoid-list li { padding: 14px 0; border-bottom: 1px solid var(--line); }
+    .avoid-list strong { color: var(--orange); }
+
+    .code-section { margin-top: 38px; }
+    .code-section > p { max-width: 740px; color: var(--muted); }
+    .code-label {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 10px 16px;
+      border-radius: 10px 10px 0 0;
+      background: #24332d;
+      color: #c4d3cc;
+      font-size: 13px;
+      font-weight: 700;
+    }
+    pre {
+      margin: 0 0 24px;
+      padding: 22px;
+      overflow-x: auto;
+      border-radius: 0 0 10px 10px;
+      background: var(--code);
+      color: #e4eee9;
+      font-size: 13px;
+      line-height: 1.65;
+      tab-size: 2;
+    }
+    .code-explanation { margin: -6px 0 30px; padding-left: 20px; color: var(--muted); font-size: 15px; }
+    .code-explanation li { margin: 6px 0; }
+
+    .checklist { margin: 28px 0 0; padding: 0; list-style: none; }
+    .checklist li { position: relative; padding: 14px 0 14px 40px; border-bottom: 1px solid var(--line); }
+    .checklist li::before {
+      content: "✓";
+      position: absolute;
+      left: 0;
+      top: 15px;
+      width: 24px;
+      height: 24px;
+      display: grid;
+      place-items: center;
+      border-radius: 50%;
+      background: var(--green-light);
+      color: var(--green);
+      font-size: 13px;
+      font-weight: 900;
+    }
+    .checklist strong { display: block; }
+    .checklist span { color: var(--muted); font-size: 15px; }
+
+    .summary { margin-top: 38px; padding: 28px; border-radius: 12px; background: var(--green); color: white; }
+    .summary h3 { margin-bottom: 12px; }
+    .summary ol { margin: 0; padding-left: 22px; }
+    .summary li { margin: 6px 0; }
+
+    footer { margin-top: 40px; padding: 36px 0 54px; border-top: 1px solid var(--line); color: var(--muted); font-size: 14px; }
+    .references { display: flex; flex-wrap: wrap; gap: 8px 18px; }
+    :focus-visible { outline: 3px solid #e3af4d; outline-offset: 3px; }
+
+    @media (max-width: 700px) {
+      body { font-size: 16px; }
+      .topbar nav { display: none; }
+      .hero { padding-top: 52px; }
+      .lead { font-size: 18px; }
+      .toc ol { columns: 1; }
+      section { padding: 46px 0; }
+      .diagram { padding: 20px; }
+      .actors { grid-template-columns: 1fr; }
+      .actor { min-height: 98px; }
+      .big-arrow { transform: rotate(90deg); justify-self: center; }
+      .token-table { overflow-x: auto; }
+      .token-table table { min-width: 620px; }
+      .approach-heading { display: block; }
+      .approach-heading .badge { display: inline-block; margin-top: 8px; }
+      .approach-facts { grid-template-columns: 1fr; }
+      .approach-facts dt { padding-bottom: 0; border-bottom: 0; font-size: 13px; font-weight: 700; }
+      .approach-facts dd { padding-top: 2px; }
+      .track-grid, .term-grid { grid-template-columns: 1fr; }
+      .diagram-wide { grid-template-columns: 1fr; }
+      .diagram-wide .actor { min-height: 98px; }
+      pre, .code-label { margin-left: -18px; margin-right: -18px; border-radius: 0; }
+      pre { font-size: 12px; }
+    }
+    @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+  </style>
+</head>
+<body>
+  <a class="skip-link" href="#content">Skip to the article</a>
+
+  <header class="topbar">
+    <div class="topbar-inner">
+      <a class="brand" href="#top">Authentication, simply</a>
+      <nav aria-label="Article sections">
+        <a href="#token-pattern">Access + refresh</a>
+        <a href="#bff-pattern">OAuth BFF</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="article" id="content">
+    <header class="hero" id="top">
+      <p class="label">Rust REST API + React</p>
+      <h1>How authentication works in a real web app</h1>
+      <p class="lead">A practical, beginner-friendly explanation of how a frontend proves a user’s identity to a backend—and how the app keeps that identity secure after login.</p>
+
+      <div class="reading-note">
+        <span class="icon" aria-hidden="true">i</span>
+        <div>
+          <strong>How this guide is organized</strong>
+          <p>First compare the main production architectures. Then study two practical designs in detail: access token + refresh cookie, and a Backend-for-Frontend using OAuth.</p>
+        </div>
+      </div>
+    </header>
+
+    <nav class="toc" aria-label="Table of contents">
+      <strong>In this guide</strong>
+      <ol>
+        <li><a href="#approaches">Choose an architecture</a></li>
+        <li><a href="#two-patterns">The two learning tracks</a></li>
+        <li><a href="#token-pattern">Access + refresh cookie</a></li>
+        <li><a href="#bff-pattern">BFF with OAuth</a></li>
+        <li><a href="#comparison">Which one should you use?</a></li>
+        <li><a href="#production">Production checklist</a></li>
+      </ol>
+    </nav>
+
+    <section id="approaches">
+      <p class="label">1 · Start with the architecture</p>
+      <h2>Authentication is a goal, not a single design</h2>
+      <p class="section-intro">Every design must establish who the user is and carry that identity safely across requests. The right mechanism depends on the shape and risk of the application.</p>
+
+      <div class="plain-box">
+        <strong>Two questions that are easy to mix up</strong>
+        <p><strong>Authentication</strong> asks how the user proves their identity—for example, a password, passkey, or OpenID Connect provider. <strong>Session architecture</strong> asks how the application remembers and uses that identity on later requests—for example, a session cookie, a BFF, or access tokens.</p>
+      </div>
+
+      <p>“Sign in with Google,” an enterprise identity provider, and your own email/password screen answer the first question. The five patterns below answer the second. They can be combined: an application can use OpenID Connect for sign-in and then keep its own server-side cookie session.</p>
+
+      <div class="decision-box">
+        <strong>A quick decision guide</strong>
+        <ul>
+          <li><strong>One website and one same-domain API:</strong> start with a server-side cookie session.</li>
+          <li><strong>Business or personal-data application using OAuth:</strong> prefer a Backend-for-Frontend.</li>
+          <li><strong>The browser must call several APIs directly:</strong> consider a token-mediating backend.</li>
+          <li><strong>No backend component is possible:</strong> use Authorization Code with PKCE in the browser and accept the larger attack surface.</li>
+          <li><strong>Web and mobile clients share the API:</strong> access tokens can provide a consistent API boundary, while each client stores credentials differently.</li>
+        </ul>
+      </div>
+
+      <div class="approach-list">
+        <article class="approach-card preferred">
+          <div class="approach-heading">
+            <h3>1. Server-side cookie session</h3>
+            <span class="badge">Best simple default</span>
+          </div>
+          <p>The browser receives a random session ID in an HttpOnly cookie. The server uses that ID to load the user’s session from Redis or a database. React never receives an access or refresh token.</p>
+          <div class="pattern-flow" aria-label="Server-side session flow">
+            <span>React</span><span class="flow-arrow">→ cookie →</span><span>Rust API</span><span class="flow-arrow">→ lookup →</span><span>Session store</span>
+          </div>
+          <dl class="approach-facts">
+            <dt>Use it for</dt><dd>A first-party frontend and API on the same site or behind the same gateway.</dd>
+            <dt>Choose it when</dt><dd>You want the smallest secure design and do not need the browser to carry credentials to unrelated APIs.</dd>
+            <dt>Browser holds</dt><dd>Only an opaque HttpOnly session cookie.</dd>
+            <dt>Main trade-off</dt><dd>The server must store and look up session state. Cookie-authenticated routes require CSRF protection.</dd>
+          </dl>
+        </article>
+
+        <article class="approach-card">
+          <div class="approach-heading">
+            <h3>2. Access token plus refresh cookie</h3>
+            <span class="badge neutral">Learning track A</span>
+          </div>
+          <p>React keeps a short-lived access token in memory and sends it directly to APIs. A rotating refresh token stays in an HttpOnly cookie and is used only by authentication endpoints.</p>
+          <div class="pattern-flow" aria-label="Access and refresh token flow">
+            <span>React + access token</span><span class="flow-arrow">→</span><span>Rust APIs</span><span class="flow-arrow">↔ refresh cookie ↔</span><span>Auth service</span>
+          </div>
+          <dl class="approach-facts">
+            <dt>Use it for</dt><dd>A separate SPA and API, several APIs accepting the same bearer token, or web and mobile clients sharing an API.</dd>
+            <dt>Choose it when</dt><dd>Direct browser-to-API calls and a token-based API boundary are valuable enough to justify extra lifecycle logic.</dd>
+            <dt>Browser holds</dt><dd>An access token in memory and an unreadable refresh cookie.</dd>
+            <dt>Main trade-off</dt><dd>Malicious JavaScript can read the current access token. Rotation, expiry, CORS, CSP, and CSRF controls must all be correct.</dd>
+          </dl>
+        </article>
+
+        <article class="approach-card preferred">
+          <div class="approach-heading">
+            <h3>3. Backend-for-Frontend (BFF)</h3>
+            <span class="badge">Learning track B</span>
+          </div>
+          <p>A small backend is dedicated to the React application. It stores OAuth access and refresh tokens on the server. React sends only its session cookie to the BFF, and the BFF forwards requests to downstream APIs with the correct access token.</p>
+          <div class="pattern-flow" aria-label="Backend-for-Frontend flow">
+            <span>React</span><span class="flow-arrow">→ session cookie →</span><span>BFF</span><span class="flow-arrow">→ access token →</span><span>APIs</span>
+          </div>
+          <dl class="approach-facts">
+            <dt>Use it for</dt><dd>Business software, financial or health-related workflows, and applications handling valuable personal data.</dd>
+            <dt>Choose it when</dt><dd>Keeping all OAuth tokens out of JavaScript matters more than operating an additional proxy layer.</dd>
+            <dt>Browser holds</dt><dd>Only an HttpOnly session cookie.</dd>
+            <dt>Main trade-off</dt><dd>Every API request passes through the BFF, adding infrastructure, latency, capacity, and proxy-security responsibilities.</dd>
+          </dl>
+        </article>
+
+        <article class="approach-card">
+          <div class="approach-heading">
+            <h3>4. Token-mediating backend</h3>
+            <span class="badge neutral">Middle ground</span>
+          </div>
+          <p>The backend performs the OAuth login and safely retains the refresh token. It gives React a short-lived access token, which React then uses to call resource APIs directly.</p>
+          <div class="pattern-flow" aria-label="Token-mediating backend flow">
+            <span>Token backend</span><span class="flow-arrow">→ access token →</span><span>React</span><span class="flow-arrow">→</span><span>APIs</span>
+          </div>
+          <dl class="approach-facts">
+            <dt>Use it for</dt><dd>Large downloads, streaming, or high-volume APIs where proxying every response through a BFF is impractical.</dd>
+            <dt>Choose it when</dt><dd>You need direct API calls but want refresh tokens and OAuth client credentials to remain server-side.</dd>
+            <dt>Browser holds</dt><dd>A short-lived access token, but not the refresh token.</dd>
+            <dt>Main trade-off</dt><dd>Access tokens are still exposed to browser JavaScript. Check whether a full BFF is feasible first.</dd>
+          </dl>
+        </article>
+
+        <article class="approach-card">
+          <div class="approach-heading">
+            <h3>5. Browser-only OAuth client</h3>
+            <span class="badge neutral">Use with care</span>
+          </div>
+          <p>React performs the OAuth Authorization Code flow with PKCE and receives tokens directly from the identity provider. There is no application backend helping with token management.</p>
+          <div class="pattern-flow" aria-label="Browser-only OAuth flow">
+            <span>React</span><span class="flow-arrow">↔ code + PKCE ↔</span><span>Identity provider</span><span class="flow-arrow">→ token →</span><span>APIs</span>
+          </div>
+          <dl class="approach-facts">
+            <dt>Use it for</dt><dd>Static public clients, lower-risk applications, prototypes, or environments where a backend cannot be deployed.</dd>
+            <dt>Choose it when</dt><dd>The operational simplicity is worth exposing the token lifecycle to the browser.</dd>
+            <dt>Browser holds</dt><dd>Access tokens and, if issued, refresh tokens. Rotation or sender-constraining is required for refresh tokens.</dd>
+            <dt>Main trade-off</dt><dd>The largest browser attack surface. It is not recommended for sensitive business applications or applications handling personal data.</dd>
+          </dl>
+        </article>
+      </div>
+
+      <h3 style="margin-top:38px">Patterns to avoid in new browser applications</h3>
+      <ul class="avoid-list">
+        <li><strong>OAuth Implicit flow:</strong> use Authorization Code with PKCE instead.</li>
+        <li><strong>Resource Owner Password Credentials grant:</strong> do not collect an identity provider’s password in the SPA.</li>
+        <li><strong>Long-lived tokens in localStorage:</strong> malicious JavaScript can read and export them.</li>
+        <li><strong>A shared OAuth client secret inside React:</strong> code shipped to browsers cannot keep a secret.</li>
+      </ul>
+    </section>
+
+    <section id="two-patterns">
+      <p class="label">2 · The two learning tracks</p>
+      <h2>Two secure boundaries, two different responsibilities</h2>
+      <p class="section-intro">Both designs can be production-ready. Their biggest difference is whether browser JavaScript receives an access token or whether a server component keeps every OAuth token away from the browser.</p>
+
+      <div class="track-grid">
+        <article class="track-card token">
+          <p class="track-kicker">Pattern A · Direct API access</p>
+          <h3>Access token + refresh cookie</h3>
+          <p>React keeps a short-lived access token in memory and calls the Rust API directly. A protected refresh cookie lets the authentication service issue another access token.</p>
+          <div class="pattern-flow" aria-label="Access token and refresh cookie summary">
+            <span>React</span><span class="flow-arrow">→ bearer token →</span><span>API</span>
+          </div>
+          <a href="#token-pattern">Study pattern A →</a>
+        </article>
+
+        <article class="track-card bff">
+          <p class="track-kicker">Pattern B · Server-side OAuth client</p>
+          <h3>Backend-for-Frontend with OAuth</h3>
+          <p>React sends only an opaque session cookie to its BFF. The BFF stores OAuth tokens, refreshes them, and calls downstream APIs on the user’s behalf.</p>
+          <div class="pattern-flow" aria-label="Backend-for-Frontend summary">
+            <span>React</span><span class="flow-arrow">→ cookie →</span><span>BFF</span><span class="flow-arrow">→ token →</span><span>API</span>
+          </div>
+          <a href="#bff-pattern">Study pattern B →</a>
+        </article>
+      </div>
+
+      <div class="plain-box">
+        <strong>The question to keep asking</strong>
+        <p>Who is the OAuth or authentication client? In pattern A, the React application actively handles an access token. In pattern B, the Rust BFF is the OAuth client and React only knows about its application session.</p>
+      </div>
+    </section>
+
+    <section id="token-pattern">
+      <p class="label">3 · Pattern A</p>
+      <h2>Access token + refresh cookie</h2>
+      <p class="section-intro">This pattern gives the browser a short-lived credential for direct API calls while keeping the longer-lived credential out of JavaScript.</p>
+
+      <div class="plain-box">
+        <strong>The mental model</strong>
+        <p>The access token is the API pass. The refresh cookie is the way to ask for a new pass. React can read the first one, but cannot read the second one.</p>
+      </div>
+
+      <figure class="diagram">
+        <div class="actors">
+          <div class="actor browser">
+            <span class="actor-icon" aria-hidden="true">▣</span>
+            <strong>React browser app</strong>
+            <span>Keeps the access token in memory</span>
+          </div>
+          <span class="big-arrow" aria-hidden="true">⇄</span>
+          <div class="actor api">
+            <span class="actor-icon" aria-hidden="true">⚙</span>
+            <strong>Rust REST API</strong>
+            <span>Issues and verifies credentials</span>
+          </div>
+          <span class="big-arrow" aria-hidden="true">⇄</span>
+          <div class="actor store">
+            <span class="actor-icon" aria-hidden="true">▤</span>
+            <strong>Session store</strong>
+            <span>Stores refresh-token hashes and status</span>
+          </div>
+        </div>
+        <figcaption>The access token travels in an Authorization header. The refresh cookie travels only to authentication endpoints.</figcaption>
+      </figure>
+
+      <h3>What each credential does</h3>
+      <div class="token-table" role="region" aria-label="Token comparison" tabindex="0">
+        <table>
+          <thead><tr><th></th><th>Access token</th><th>Refresh token</th></tr></thead>
+          <tbody>
+            <tr><td>Purpose</td><td>Call protected endpoints</td><td>Obtain a new access token</td></tr>
+            <tr><td>Typical lifetime</td><td>Minutes</td><td>Days or weeks</td></tr>
+            <tr><td>Browser location</td><td>JavaScript memory</td><td><code>HttpOnly</code> cookie</td></tr>
+            <tr><td>Sent with</td><td><code>Authorization: Bearer …</code></td><td>Only <code>/auth/*</code> routes</td></tr>
+            <tr><td>Server storage</td><td>Usually verified without storage</td><td>Store a hash or session record</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="warning">
+        <strong>Why memory instead of localStorage?</strong>
+        <p>Any JavaScript running in the page can read localStorage. Keeping the access token in memory reduces persistence after a reload, but it does not make the token invisible to malicious JavaScript. XSS prevention and a strong Content Security Policy still matter.</p>
+      </div>
+    </section>
+
+    <section id="token-flow">
+      <p class="label">3A · Pattern A request flow</p>
+      <h2>From password sign-in to sign-out</h2>
+      <p class="section-intro">Here is the complete lifecycle when the Rust authentication service owns the user accounts and React calls the API directly.</p>
+
+      <ol class="flow-list">
+        <li>
+          <h3>The user signs in</h3>
+          <p>React sends the email and password to the API over HTTPS. The API looks up the user and compares the submitted password with the stored password hash.</p>
+          <span class="request">POST /auth/login</span>
+        </li>
+        <li>
+          <h3>The API creates two tokens</h3>
+          <p>If the password is correct, the API returns a short-lived access token in JSON. It also sets a longer-lived refresh token as an HttpOnly cookie, which browser JavaScript cannot read.</p>
+        </li>
+        <li>
+          <h3>React calls a protected endpoint</h3>
+          <p>React places the access token in the <code>Authorization</code> header. Rust middleware verifies the token before allowing the request to reach the endpoint.</p>
+          <span class="request">GET /api/me</span>
+        </li>
+        <li>
+          <h3>The access token expires</h3>
+          <p>After a short time, the access token becomes invalid. The protected endpoint returns <code>401 Unauthorized</code>. This is expected—not an application failure.</p>
+        </li>
+        <li>
+          <h3>React refreshes the session</h3>
+          <p>React calls the refresh endpoint. The browser automatically sends the HttpOnly refresh cookie. The API validates it, rotates it transactionally, and returns a new access token.</p>
+          <span class="request">POST /auth/refresh</span>
+        </li>
+        <li>
+          <h3>The user signs out</h3>
+          <p>The API revokes the refresh session and expires the cookie. React removes the access token from memory.</p>
+          <span class="request">POST /auth/logout</span>
+        </li>
+      </ol>
+
+      <div class="plain-box">
+        <strong>Rotation needs reuse detection</strong>
+        <p>When refresh token B replaces token A, A becomes invalid immediately. If A appears again, treat the token family as compromised and revoke the whole session—not just the reused token.</p>
+      </div>
+    </section>
+
+    <section id="token-security">
+      <p class="label">3B · Pattern A security boundary</p>
+      <h2>React carries proof; Rust makes the decision</h2>
+      <p class="section-intro">The browser may present a token, but it never decides whether that token is valid or whether the user may perform an action.</p>
+
+      <div class="term-grid">
+        <article class="term">
+          <strong>Authentication</strong>
+          <p>Rust verifies the password and token signature, then determines which user the token represents.</p>
+        </article>
+        <article class="term">
+          <strong>Authorization</strong>
+          <p>Each endpoint checks whether that user may read or change the requested resource.</p>
+        </article>
+        <article class="term">
+          <strong>Session continuity</strong>
+          <p>The refresh endpoint rotates the protected refresh token and restores a short-lived access token.</p>
+        </article>
+      </div>
+
+      <h3>What Rust must verify on every access token</h3>
+      <ul>
+        <li>The cryptographic signature and the expected signing algorithm.</li>
+        <li>The expiration time, issuer, audience, and any required token type.</li>
+        <li>The scopes or permissions required by the endpoint.</li>
+      </ul>
+
+      <p>Do not accept a token merely because it can be decoded. JWT contents are readable by design; trust comes from successful validation against the expected keys and claims.</p>
+    </section>
+
+    <section id="token-code">
+      <p class="label">3C · Pattern A code</p>
+      <h2>Rust issues tokens; React sends them</h2>
+      <p class="section-intro">These examples show only the authentication boundary. Database functions and JWT helpers are represented by clearly named functions so the main flow stays easy to see.</p>
+
+      <div class="code-section">
+        <h3>Rust: define the routes</h3>
+        <p>Public authentication routes create or end sessions. Middleware protects the application route.</p>
+        <div class="code-label"><span>api/src/main.rs</span><span>Axum</span></div>
+        <pre><code>use axum::{middleware, routing::{get, post}, Router};
+
+let protected_routes = Router::new()
+    .route("/api/me", get(me))
+    .route_layer(middleware::from_fn_with_state(
+        state.clone(),
+        require_access_token,
+    ));
+
+let app = Router::new()
+    .route("/auth/login", post(login))
+    .route("/auth/refresh", post(refresh))
+    .route("/auth/logout", post(logout))
+    .merge(protected_routes)
+    .with_state(state);</code></pre>
+        <ul class="code-explanation">
+          <li><code>/auth/login</code> must work before the user is authenticated.</li>
+          <li><code>/api/me</code> runs only after the middleware accepts an access token.</li>
+        </ul>
+      </div>
+
+      <div class="code-section">
+        <h3>Rust: sign in and set the refresh cookie</h3>
+        <p>The backend verifies the password, creates both tokens, and returns them through different channels.</p>
+        <div class="code-label"><span>api/src/auth.rs</span><span>Login handler</span></div>
+        <pre><code>use axum::{extract::State, response::IntoResponse, Json};
+use axum_extra::extract::cookie::{Cookie, CookieJar, SameSite};
+use serde::{Deserialize, Serialize};
+use time::Duration;
+
+#[derive(Deserialize)]
+struct LoginBody {
+    email: String,
+    password: String,
+}
+
+#[derive(Serialize)]
+struct TokenBody {
+    access_token: String,
+}
+
+async fn login(
+    State(state): State&lt;AppState&gt;,
+    jar: CookieJar,
+    Json(body): Json&lt;LoginBody&gt;,
+) -&gt; Result&lt;impl IntoResponse, ApiError&gt; {
+    let user = state.users.find_by_email(&amp;body.email).await?
+        .ok_or(ApiError::InvalidCredentials)?;
+
+    // Compare the password with its stored Argon2id hash.
+    verify_password(&amp;body.password, &amp;user.password_hash).await?;
+
+    let access_token = issue_access_token(user.id, Duration::minutes(10))?;
+
+    // Store only a hash of this token in the database.
+    let refresh_token = state.sessions.create(user.id).await?;
+
+    let cookie = Cookie::build(("refresh", refresh_token))
+        .path("/auth")
+        .http_only(true)
+        .secure(true)
+        .same_site(SameSite::Lax)
+        .max_age(Duration::days(14))
+        .build();
+
+    Ok((jar.add(cookie), Json(TokenBody { access_token })))
+}</code></pre>
+        <ul class="code-explanation">
+          <li><code>HttpOnly</code> prevents JavaScript from reading the cookie.</li>
+          <li><code>Secure</code> tells the browser to send it only over HTTPS.</li>
+          <li><code>SameSite=Lax</code> helps reduce cross-site request forgery for a same-site application.</li>
+        </ul>
+      </div>
+
+      <div class="code-section">
+        <h3>Rust: protect an endpoint</h3>
+        <p>Middleware checks the bearer token before the endpoint runs.</p>
+        <div class="code-label"><span>api/src/auth_middleware.rs</span><span>Authorization</span></div>
+        <pre><code>use axum::{
+    extract::{Request, State},
+    http::{header, StatusCode},
+    middleware::Next,
+    response::Response,
+};
+
+async fn require_access_token(
+    State(state): State&lt;AppState&gt;,
+    mut request: Request,
+    next: Next,
+) -&gt; Result&lt;Response, StatusCode&gt; {
+    let token = request.headers()
+        .get(header::AUTHORIZATION)
+        .and_then(|value| value.to_str().ok())
+        .and_then(|value| value.strip_prefix("Bearer "))
+        .ok_or(StatusCode::UNAUTHORIZED)?;
+
+    let claims = state.jwt.verify(token)
+        .map_err(|_| StatusCode::UNAUTHORIZED)?;
+
+    request.extensions_mut().insert(CurrentUser {
+        id: claims.user_id,
+    });
+
+    Ok(next.run(request).await)
+}</code></pre>
+        <p class="code-explanation">The real verifier must check the signature, expiration time, issuer, audience, and expected signing algorithm.</p>
+      </div>
+
+      <div class="code-section">
+        <h3>React: keep the access token in memory</h3>
+        <p>The frontend adds the token to API requests. If it receives a 401, it refreshes once and retries once.</p>
+        <div class="code-label"><span>src/api.js</span><span>React client</span></div>
+        <pre><code>let accessToken = null;
+let refreshInProgress = null;
+
+export async function signIn(email, password) {
+  const response = await fetch("/auth/login", {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, password }),
+  });
+
+  if (!response.ok) throw new Error("Invalid email or password");
+  const body = await response.json();
+  accessToken = body.access_token;
+}
+
+async function refreshOnce() {
+  if (!refreshInProgress) {
+    refreshInProgress = fetch("/auth/refresh", {
+      method: "POST",
+      credentials: "include",
+    })
+      .then(async (response) =&gt; {
+        if (!response.ok) throw new Error("Session expired");
+        const body = await response.json();
+        accessToken = body.access_token;
+      })
+      .finally(() =&gt; { refreshInProgress = null; });
+  }
+
+  return refreshInProgress;
+}
+
+export async function api(path, options = {}, canRetry = true) {
+  const headers = new Headers(options.headers);
+  if (accessToken) {
+    headers.set("Authorization", `Bearer ${accessToken}`);
+  }
+
+  let response = await fetch(path, { ...options, headers });
+
+  if (response.status === 401 &amp;&amp; canRetry) {
+    await refreshOnce();
+    response = await api(path, options, false);
+  }
+
+  return response;
+}</code></pre>
+        <ul class="code-explanation">
+          <li>The access token disappears when the page reloads. The app can call refresh on startup to restore the session.</li>
+          <li>Sharing one refresh promise prevents several failed requests from rotating the same refresh token at the same time.</li>
+          <li>The retry happens only once, so a broken session cannot create an infinite loop.</li>
+        </ul>
+      </div>
+
+      <div class="plain-box">
+        <strong>What the examples leave out</strong>
+        <p>A real application also needs database transactions for refresh rotation, rate limiting, password-reset flows, email verification, key rotation, logging, monitoring, and usually multi-factor authentication for sensitive accounts.</p>
+      </div>
+    </section>
+
+    <section id="bff-pattern">
+      <p class="label">4 · Pattern B</p>
+      <h2>Backend-for-Frontend with OAuth</h2>
+      <p class="section-intro">The BFF is a small server-side component dedicated to the React application. It becomes the confidential OAuth client, owns every token, and exposes a cookie-authenticated API designed for that frontend.</p>
+
+      <div class="plain-box">
+        <strong>The mental model</strong>
+        <p>React has an application session, not an OAuth token. The Rust BFF translates the session cookie into an access token only when it calls an approved downstream API.</p>
+      </div>
+
+      <h3>OAuth and OpenID Connect are related, but not identical</h3>
+      <div class="term-grid">
+        <article class="term">
+          <strong>OAuth 2.0</strong>
+          <p>Delegates access to protected APIs. Its access token answers: “What may this client call?”</p>
+        </article>
+        <article class="term">
+          <strong>OpenID Connect</strong>
+          <p>Adds user authentication to OAuth. Its ID token tells the client who authenticated.</p>
+        </article>
+        <article class="term">
+          <strong>Application session</strong>
+          <p>Lets React remain signed in to the BFF. It is represented by an opaque cookie, not by the ID token.</p>
+        </article>
+      </div>
+      <p>For “Sign in with an identity provider,” a BFF normally runs the OpenID Connect Authorization Code flow: it requests the <code>openid</code> scope, validates the returned ID token, and also receives OAuth access tokens for APIs.</p>
+
+      <div class="subsection">
+        <p class="subsection-label">4A · Architecture graph</p>
+        <h3>Four parties, one browser-safe boundary</h3>
+        <figure class="diagram">
+          <div class="diagram-wide">
+            <div class="actor browser">
+              <span class="actor-icon" aria-hidden="true">▣</span>
+              <strong>React</strong>
+              <span>Holds only a session cookie</span>
+            </div>
+            <div class="actor api">
+              <span class="actor-icon" aria-hidden="true">⚙</span>
+              <strong>Rust BFF</strong>
+              <span>OAuth client, session manager, API proxy</span>
+            </div>
+            <div class="actor idp">
+              <span class="actor-icon" aria-hidden="true">◇</span>
+              <strong>Identity provider</strong>
+              <span>Authenticates the user and issues tokens</span>
+            </div>
+            <div class="actor store">
+              <span class="actor-icon" aria-hidden="true">▤</span>
+              <strong>Resource API</strong>
+              <span>Accepts the access token from the BFF</span>
+            </div>
+          </div>
+          <div class="pattern-flow" aria-label="Backend-for-Frontend OAuth request path">
+            <span>React</span><span class="flow-arrow">→ session cookie →</span><span>Rust BFF</span><span class="flow-arrow">↔ code + tokens ↔</span><span>Identity provider</span>
+          </div>
+          <div class="pattern-flow" aria-label="Backend-for-Frontend API proxy path">
+            <span>React</span><span class="flow-arrow">→ /bff/api/* →</span><span>Rust BFF</span><span class="flow-arrow">→ bearer token →</span><span>Resource API</span>
+          </div>
+          <figcaption>No access token, refresh token, ID token, client secret, or PKCE verifier is exposed to React.</figcaption>
+        </figure>
+      </div>
+
+      <div class="subsection" id="bff-flow">
+        <p class="subsection-label">4B · Authorization Code flow</p>
+        <h3>From “Sign in” to an API response</h3>
+
+        <div class="sequence">
+          <div class="step-number">1</div>
+          <div class="step-copy">
+            <strong>React checks its application session</strong>
+            <p>It requests <code>GET /bff/session</code>. With no valid session cookie, the BFF returns an unauthenticated result.</p>
+          </div>
+
+          <div class="step-number">2</div>
+          <div class="step-copy">
+            <strong>The BFF starts a secure authorization request</strong>
+            <p>The browser navigates to <code>/oauth/login</code>. Rust creates unpredictable <code>state</code> and <code>nonce</code> values plus a PKCE verifier and S256 challenge. It stores the temporary transaction server-side, then redirects to the identity provider.</p>
+          </div>
+
+          <div class="step-number">3</div>
+          <div class="step-copy">
+            <strong>The identity provider authenticates the user</strong>
+            <p>The provider handles the password, passkey, MFA, and consent screens. Your React application never receives those credentials.</p>
+          </div>
+
+          <div class="step-number">4</div>
+          <div class="step-copy">
+            <strong>The provider returns a short-lived authorization code</strong>
+            <p>The browser is redirected to <code>/oauth/callback?code=…&amp;state=…</code>. The callback belongs to the BFF, not React.</p>
+          </div>
+
+          <div class="step-number">5</div>
+          <div class="step-copy">
+            <strong>The BFF exchanges the code and validates the result</strong>
+            <p>Rust checks the stored state, sends the code with its PKCE verifier and confidential-client authentication, then validates the ID token’s signature, issuer, audience, expiry, and nonce.</p>
+          </div>
+
+          <div class="step-number">6</div>
+          <div class="step-copy">
+            <strong>The BFF creates an application session</strong>
+            <p>Access and refresh tokens stay in the server-side session store. The browser receives only a random cookie such as <code>__Host-session</code> with <code>Secure</code>, <code>HttpOnly</code>, <code>SameSite=Strict</code>, and <code>Path=/</code>.</p>
+          </div>
+
+          <div class="step-number">7</div>
+          <div class="step-copy">
+            <strong>React calls the BFF, and the BFF calls the API</strong>
+            <p>React requests a fixed route such as <code>/bff/api/me</code>. Rust loads the session, refreshes the access token server-side if necessary, adds the bearer token to an allowlisted API request, and returns only the API response.</p>
+          </div>
+
+          <div class="step-number last">8</div>
+          <div class="step-copy">
+            <strong>Logout removes the local session</strong>
+            <p>The BFF deletes the server-side session, expires the cookie, and—when required—revokes tokens or initiates identity-provider logout.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="subsection">
+        <p class="subsection-label">4C · Where the sensitive values live</p>
+        <h3>The browser receives a handle, not the treasure</h3>
+        <div class="comparison-table" role="region" aria-label="BFF credential storage" tabindex="0">
+          <table>
+            <thead><tr><th>Value</th><th>Location</th><th>Why</th></tr></thead>
+            <tbody>
+              <tr><td>Session ID</td><td>Opaque HttpOnly browser cookie</td><td>Connects the browser to server-side state without revealing OAuth tokens.</td></tr>
+              <tr><td>Access token</td><td>BFF session store</td><td>Only the BFF attaches it to approved outbound API requests.</td></tr>
+              <tr><td>Refresh token</td><td>BFF session store, encrypted at rest</td><td>Allows server-side renewal without exposing a long-lived credential to JavaScript.</td></tr>
+              <tr><td>Client secret</td><td>Server secret manager</td><td>Makes the BFF a confidential OAuth client; it must never be shipped with React.</td></tr>
+              <tr><td>PKCE verifier, state, nonce</td><td>Short-lived server-side login transaction</td><td>Binds the callback to the login that started it and prevents code and replay attacks.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="subsection" id="bff-code">
+        <p class="subsection-label">4D · Rust and React code</p>
+        <h3>Rust owns OAuth; React owns only navigation and UI</h3>
+        <p>The following is deliberately small. The OAuth and OpenID Connect helpers stand for a reviewed library and provider discovery configuration—not handwritten token validation.</p>
+
+        <div class="code-section">
+          <h3>Rust: expose fixed BFF routes</h3>
+          <div class="code-label"><span>bff/src/main.rs</span><span>Axum</span></div>
+          <pre><code>use axum::{routing::{get, post}, Router};
+
+let app = Router::new()
+    .route("/oauth/login", get(oauth_login))
+    .route("/oauth/callback", get(oauth_callback))
+    .route("/bff/session", get(check_session))
+    .route("/bff/api/me", get(proxy_me))
+    .route("/bff/logout", post(logout))
+    .with_state(state);</code></pre>
+          <ul class="code-explanation">
+            <li>The callback and token exchange happen on Rust, never in React.</li>
+            <li>Use explicit proxy routes. Do not accept an arbitrary destination URL from the browser.</li>
+          </ul>
+        </div>
+
+        <div class="code-section">
+          <h3>Rust: begin Authorization Code + PKCE</h3>
+          <div class="code-label"><span>bff/src/oauth.rs</span><span>Login redirect</span></div>
+          <pre><code>async fn oauth_login(
+    State(app): State&lt;AppState&gt;,
+) -&gt; Result&lt;Redirect, ApiError&gt; {
+    let csrf_state = CsrfToken::new_random();
+    let nonce = Nonce::new_random();
+    let (challenge, verifier) = PkceCodeChallenge::new_random_sha256();
+
+    // Short expiry; remove it as soon as the callback uses it.
+    app.login_transactions.insert(
+        csrf_state.secret(),
+        LoginTransaction {
+            pkce_verifier: verifier.secret().to_owned(),
+            nonce: nonce.secret().to_owned(),
+        },
+    ).await?;
+
+    let (authorization_url, _) = app.oidc
+        .authorize_url(|| csrf_state)
+        .add_scope(Scope::new("openid".into()))
+        .add_scope(Scope::new("profile".into()))
+        .set_pkce_challenge(challenge)
+        .add_extra_param("nonce", nonce.secret())
+        .url();
+
+    Ok(Redirect::temporary(authorization_url.as_str()))
+}</code></pre>
+          <p class="code-explanation">Use the provider’s discovery document and exact registered redirect URI. Use the S256 PKCE method; never send the verifier in the authorization request.</p>
+        </div>
+
+        <div class="code-section">
+          <h3>Rust: exchange the code and create a session</h3>
+          <div class="code-label"><span>bff/src/oauth.rs</span><span>Callback</span></div>
+          <pre><code>#[derive(Deserialize)]
+struct CallbackQuery { code: String, state: String }
+
+async fn oauth_callback(
+    State(app): State&lt;AppState&gt;,
+    jar: CookieJar,
+    Query(query): Query&lt;CallbackQuery&gt;,
+) -&gt; Result&lt;impl IntoResponse, ApiError&gt; {
+    // "take" makes the state one-time use.
+    let tx = app.login_transactions.take(&amp;query.state).await?
+        .ok_or(ApiError::InvalidOAuthCallback)?;
+
+    let tokens = app.oidc
+        .exchange_code(
+            AuthorizationCode::new(query.code),
+            PkceCodeVerifier::new(tx.pkce_verifier),
+        )
+        .await?; // Uses confidential-client authentication.
+
+    let identity = app.oidc
+        .validate_id_token(&amp;tokens.id_token, &amp;tx.nonce)
+        .await?; // signature, issuer, audience, expiry, nonce
+
+    // Store access and refresh tokens only on the server.
+    let session_id = app.sessions
+        .create(identity.subject, tokens)
+        .await?;
+
+    let cookie = Cookie::build(("__Host-session", session_id))
+        .path("/")
+        .secure(true)
+        .http_only(true)
+        .same_site(SameSite::Strict)
+        .build();
+
+    Ok((jar.add(cookie), Redirect::to("/")))
+}</code></pre>
+          <p class="code-explanation">The helper names make the security boundary visible. In production, use a maintained OAuth/OIDC library rather than implementing discovery, token exchange, or ID-token verification yourself.</p>
+        </div>
+
+        <div class="code-section">
+          <h3>Rust: call one approved downstream endpoint</h3>
+          <div class="code-label"><span>bff/src/proxy.rs</span><span>API forwarding</span></div>
+          <pre><code>async fn proxy_me(
+    State(app): State&lt;AppState&gt;,
+    SessionId(session_id): SessionId,
+) -&gt; Result&lt;impl IntoResponse, ApiError&gt; {
+    // Refreshes server-side when the access token is near expiry.
+    let access_token = app.sessions
+        .valid_access_token(&amp;session_id)
+        .await?;
+
+    // Fixed host, fixed path, fixed method: never proxy an arbitrary URL.
+    let response = app.http
+        .get("https://api.example.com/v1/me")
+        .bearer_auth(access_token)
+        .send()
+        .await?;
+
+    Ok((response.status(), response.bytes().await?))
+}</code></pre>
+        </div>
+
+        <div class="code-section">
+          <h3>React: use the BFF without handling tokens</h3>
+          <div class="code-label"><span>src/bff.js</span><span>React client</span></div>
+          <pre><code>export function signIn() {
+  // OAuth is a navigation flow, not an AJAX login request.
+  window.location.assign("/oauth/login");
+}
+
+export async function getSession() {
+  const response = await fetch("/bff/session", {
+    credentials: "same-origin",
+  });
+  if (!response.ok) return null;
+  return response.json(); // safe user fields, never tokens
+}
+
+export async function bff(path, options = {}) {
+  const headers = new Headers(options.headers);
+  headers.set("X-CSRF", "1");
+
+  return fetch(`/bff/api${path}`, {
+    ...options,
+    headers,
+    credentials: "same-origin",
+  });
+}
+
+export async function signOut() {
+  await fetch("/bff/logout", {
+    method: "POST",
+    credentials: "same-origin",
+    headers: { "X-CSRF": "1" },
+  });
+}</code></pre>
+          <ul class="code-explanation">
+            <li>The custom header makes cross-origin scripted requests require a CORS preflight; the BFF must reject unknown origins and requests missing the header.</li>
+            <li>A per-session anti-CSRF token is another good choice, especially when the deployment shares a site with less-trusted subdomains.</li>
+            <li>Even with HttpOnly cookies, XSS can still send requests as the user while the page is open. Keep CSP and output encoding defenses.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section id="comparison">
+      <p class="label">5 · Choose between the two</p>
+      <h2>Direct API flexibility or stronger token isolation?</h2>
+      <p class="section-intro">Neither pattern removes the need for secure code. The decision is about where credentials live, who calls the APIs, and how much server infrastructure you want to operate.</p>
+
+      <div class="comparison-table" role="region" aria-label="Authentication pattern comparison" tabindex="0">
+        <table>
+          <thead><tr><th>Question</th><th>Access + refresh cookie</th><th>OAuth BFF</th></tr></thead>
+          <tbody>
+            <tr><td>Browser holds</td><td>Access token in memory and an unreadable refresh cookie</td><td>Only an opaque HttpOnly session cookie</td></tr>
+            <tr><td>Who calls the API?</td><td>React calls APIs directly</td><td>React calls the BFF; the BFF calls APIs</td></tr>
+            <tr><td>OAuth tokens exposed to JavaScript?</td><td>The access token is; the refresh token is not</td><td>No</td></tr>
+            <tr><td>Good fit</td><td>Several APIs, mobile and web clients, direct downloads or streaming, and existing bearer-token APIs</td><td>Business, sensitive, or personal-data applications using an identity provider</td></tr>
+            <tr><td>Main browser risk</td><td>XSS can read and export the current access token</td><td>XSS cannot export tokens, but can still make same-origin requests as the user</td></tr>
+            <tr><td>Main operational cost</td><td>Refresh rotation, CORS, and client-side token lifecycle</td><td>A stateful security proxy on every browser-to-API request</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="decision-box">
+        <strong>A practical default</strong>
+        <ul>
+          <li><strong>Choose the BFF</strong> when React is the primary client, you use OAuth/OIDC, the data is valuable, and proxying requests is acceptable.</li>
+          <li><strong>Choose access + refresh</strong> when direct API calls are an important requirement, especially when the same API serves browser and non-browser clients.</li>
+          <li><strong>Choose a plain server-side cookie session</strong> when one same-site web application owns both frontend and backend and OAuth access to separate resource servers is unnecessary.</li>
+        </ul>
+      </div>
+    </section>
+
+    <section id="production">
+      <p class="label">6 · Production checklist</p>
+      <h2>Before calling the system secure</h2>
+      <ul class="checklist">
+        <li><strong>Use HTTPS everywhere.</strong><span>Credentials and tokens must be encrypted while travelling over the network.</span></li>
+        <li><strong>Use maintained security libraries.</strong><span>Do not handwrite password hashing, OAuth discovery, PKCE, JWT verification, or OpenID Connect validation.</span></li>
+        <li><strong>Protect application cookies.</strong><span>Use Secure, HttpOnly, the narrowest workable SameSite setting, Path=/, no Domain attribute, and an unpredictable value.</span></li>
+        <li><strong>Protect cookie-authenticated routes from CSRF.</strong><span>Validate origins and require a custom header or anti-CSRF token in addition to an appropriate SameSite setting.</span></li>
+        <li><strong>Keep access tokens short-lived.</strong><span>For pattern A, a stolen browser token should stop working quickly. For a BFF, refresh and expiry handling stays server-side.</span></li>
+        <li><strong>Rotate and detect refresh-token reuse.</strong><span>Pattern A must invalidate the old token transactionally. A BFF should follow the provider’s rotation and revocation behavior.</span></li>
+        <li><strong>Validate every OAuth callback.</strong><span>Use Authorization Code + PKCE S256 and verify state, ID-token signature, issuer, audience, expiry, and nonce.</span></li>
+        <li><strong>Restrict the BFF proxy.</strong><span>Map fixed BFF routes to allowlisted hosts, paths, and methods so an attacker cannot redirect a user’s token elsewhere.</span></li>
+        <li><strong>Keep CORS narrow and deploy a CSP.</strong><span>Allow only the real frontend origin and reduce the chance that untrusted JavaScript can execute.</span></li>
+        <li><strong>Do not log secrets.</strong><span>Passwords, cookies, authorization codes, client secrets, and complete tokens should never appear in application logs.</span></li>
+      </ul>
+
+      <div class="summary">
+        <h3>Remember the two mental models</h3>
+        <ol>
+          <li><strong>Access + refresh:</strong> React carries a short-lived API credential; Rust validates it and protects the longer-lived refresh session.</li>
+          <li><strong>OAuth BFF:</strong> React carries only a session cookie; Rust owns OAuth and attaches tokens only to approved server-to-server requests.</li>
+        </ol>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="article">
+      <p><strong>Further reading</strong></p>
+      <div class="references">
+        <a href="https://docs.rs/axum/latest/axum/" target="_blank" rel="noreferrer">Axum documentation</a>
+        <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Set-Cookie" target="_blank" rel="noreferrer">MDN: Set-Cookie</a>
+        <a href="https://cheatsheetseries.owasp.org/cheatsheets/Session_Management_Cheat_Sheet.html" target="_blank" rel="noreferrer">OWASP: Session Management</a>
+        <a href="https://www.rfc-editor.org/rfc/rfc10017.html" target="_blank" rel="noreferrer">RFC 10017: Browser-Based Apps</a>
+        <a href="https://www.rfc-editor.org/rfc/rfc9700.html" target="_blank" rel="noreferrer">RFC 9700: OAuth Security</a>
+        <a href="https://openid.net/specs/openid-connect-core-1_0.html" target="_blank" rel="noreferrer">OpenID Connect Core</a>
+      </div>
+    </div>
+  </footer>
+</body>
+</html>
