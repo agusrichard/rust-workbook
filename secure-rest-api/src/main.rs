@@ -10,7 +10,7 @@ use axum::{Router, handler, routing::get};
 use sqlx::{Pool, Sqlite};
 
 #[derive(Clone)]
-struct AppState {
+pub struct AppState {
     pool: Pool<Sqlite>,
 }
 

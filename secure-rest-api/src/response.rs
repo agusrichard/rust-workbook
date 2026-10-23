@@ -14,6 +14,10 @@ impl ErrorResponse {
     }
 }
 
+pub fn api_error(status: StatusCode, message: &str) -> ApiError {
+    (status, Json(ErrorResponse::new(message)))
+}
+
 pub type ApiError = (StatusCode, Json<ErrorResponse>);
 pub type ApiResult<T> = Result<(StatusCode, Json<T>), ApiError>;
 
