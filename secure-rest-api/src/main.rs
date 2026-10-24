@@ -6,7 +6,7 @@ pub mod response;
 
 use std::println;
 
-use axum::{Router, handler, routing::get};
+use axum::{Router, routing::get};
 use sqlx::{Pool, Sqlite};
 
 #[derive(Clone)]
