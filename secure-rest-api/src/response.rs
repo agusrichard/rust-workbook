@@ -1,7 +1,7 @@
 use axum::{Json, http::StatusCode};
+use serde::Serialize;
 
-use crate::models::User;
-
+#[derive(Serialize)]
 pub struct ErrorResponse {
     pub message: String,
 }
@@ -20,8 +20,3 @@ pub fn api_error(status: StatusCode, message: &str) -> ApiError {
 
 pub type ApiError = (StatusCode, Json<ErrorResponse>);
 pub type ApiResult<T> = Result<(StatusCode, Json<T>), ApiError>;
-
-pub struct AuthPayload {
-    pub token: String,
-    pub user: User,
-}

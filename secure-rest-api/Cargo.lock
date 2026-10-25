@@ -1150,6 +1150,7 @@ dependencies = [
  "argon2",
  "axum",
  "dotenvy",
+ "serde",
  "sqlx",
  "tokio",
 ]
