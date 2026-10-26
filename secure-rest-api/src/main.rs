@@ -7,12 +7,15 @@ pub mod response;
 use std::println;
 
 use axum::{
-    Router,
+    Router, middleware,
     routing::{get, post},
 };
 use sqlx::{Pool, Sqlite};
 
-use crate::handlers::{hello_world, login, logout, refresh, register};
+use crate::{
+    auth::require_access_token,
+    handlers::{hello_world, login, logout, me, refresh, register},
+};
 
 #[derive(Clone)]
 pub struct AppState {
@@ -32,6 +35,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let refresh_token_secret =
         std::env::var("REFRESH_TOKEN_SECRET").expect("REFRESH_TOKEN_SECRET is not set");
     let pool = db::connect(&database_url).await?;
+    let state = AppState {
+        pool,
+        access_token_secret,
+        refresh_token_secret,
+    };
 
     let app = Router::new()
         .route("/", get(hello_world))
@@ -39,11 +47,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .route("/auth/login", post(login))
         .route("/auth/logout", post(logout))
         .route("/auth/refresh", post(refresh))
-        .with_state(AppState {
-            pool,
-            access_token_secret,
-            refresh_token_secret,
-        });
+        .route(
+            "/api/me",
+            get(me).route_layer(middleware::from_fn_with_state(
+                state.clone(),
+                require_access_token,
+            )),
+        )
+        .with_state(state);
 
     let listener = tokio::net::TcpListener::bind(&api_url).await?;
     println!("Server is running {}", &api_url);

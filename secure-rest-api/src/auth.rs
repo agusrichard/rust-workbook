@@ -1,14 +1,23 @@
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use argon2::{Argon2, PasswordHash, PasswordHasher, PasswordVerifier};
-use axum::{Error, http::StatusCode};
+use axum::{
+    Error,
+    extract::{Request, State},
+    http::{StatusCode, header::AUTHORIZATION},
+    middleware::Next,
+    response::Response,
+};
 use axum_extra::extract::cookie::{Cookie, SameSite};
-use jsonwebtoken::{Algorithm, EncodingKey, Header, encode};
+use jsonwebtoken::{Algorithm, DecodingKey, EncodingKey, Header, Validation, decode, encode};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use sqlx::{Pool, Sqlite};
 
-use crate::response::{ApiError, api_error};
+use crate::{
+    AppState,
+    response::{ApiError, api_error},
+};
 
 const COOKIE_SECURE_FLAG: bool = false;
 
@@ -100,6 +109,33 @@ pub fn issue_access_token(user_id: i64, secret: &[u8]) -> Result<(String, u64), 
 
 pub fn issue_refresh_token(user_id: i64, secret: &[u8]) -> Result<(String, u64), ApiError> {
     issue_token(user_id, TokenType::Refresh, 30 * 24 * 60 * 60, secret)
+}
+
+pub async fn require_access_token(
+    State(state): State<AppState>,
+    request: Request,
+    next: Next,
+) -> Result<Response, ApiError> {
+    let token = request
+        .headers()
+        .get(AUTHORIZATION)
+        .and_then(|value| value.to_str().ok())
+        .and_then(|value| value.strip_prefix("Bearer "))
+        .ok_or_else(|| api_error(StatusCode::UNAUTHORIZED, "Unauthorized", None))?;
+
+    let claims = decode::<TokenClaims>(
+        token,
+        &DecodingKey::from_secret(state.access_token_secret.as_bytes()),
+        &Validation::new(Algorithm::HS256),
+    )
+    .map_err(|_| api_error(StatusCode::UNAUTHORIZED, "Unauthorized", None))?
+    .claims;
+
+    if !matches!(claims.token_type, TokenType::Access) {
+        return Err(api_error(StatusCode::UNAUTHORIZED, "Unauthorized", None));
+    }
+
+    Ok(next.run(request).await)
 }
 
 pub fn build_refresh_cookie(token: String) -> Cookie<'static> {
