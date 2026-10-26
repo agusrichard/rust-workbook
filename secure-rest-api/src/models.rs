@@ -19,5 +19,5 @@ pub struct AuthRequest {
 #[derive(Serialize)]
 pub struct AuthPayload {
     pub access_token: String,
-    pub user: User,
+    pub user: Option<User>,
 }

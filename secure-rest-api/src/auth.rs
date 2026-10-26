@@ -111,7 +111,7 @@ pub fn build_refresh_cookie(token: String) -> Cookie<'static> {
         .build()
 }
 
-pub async fn user_login(
+pub async fn login_session(
     pool: &Pool<Sqlite>,
     user_id: i64,
     session_expires_at: i64,
@@ -146,8 +146,7 @@ pub async fn user_login(
         .bind(refresh_token.as_slice())
         .execute(&mut *tx)
         .await
-        .map_err(|e| {
-            eprintln!("{}", e);
+        .map_err(|_| {
             api_error(
                 StatusCode::INTERNAL_SERVER_ERROR,
                 "Please try again later!",

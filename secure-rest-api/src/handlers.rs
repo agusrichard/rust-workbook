@@ -10,7 +10,7 @@ use crate::{
     AppState,
     auth::{
         build_refresh_cookie, build_refresh_cookie_removal, hash_password, hash_refresh_token,
-        issue_access_token, issue_refresh_token, user_login, validate_password, verify_password,
+        issue_access_token, issue_refresh_token, login_session, validate_password, verify_password,
     },
     models::{AuthPayload, AuthRequest, User},
     response::{ApiResult, api_error},
@@ -18,6 +18,10 @@ use crate::{
 
 pub async fn hello_world() -> String {
     "Hello World".to_string()
+}
+
+pub async fn me() -> String {
+    "This is an amazing content bro!".to_string()
 }
 
 pub async fn register(
@@ -81,14 +85,17 @@ pub async fn register(
     let (refresh_token, refresh_expires_at) =
         issue_refresh_token(user.id, state.refresh_token_secret.as_bytes())?;
 
-    user_login(&pool, user.id, refresh_expires_at as i64, &refresh_token).await?;
+    login_session(&pool, user.id, refresh_expires_at as i64, &refresh_token).await?;
 
     let jar = jar.add(build_refresh_cookie(refresh_token));
 
     Ok((
         StatusCode::CREATED,
         jar,
-        Json(AuthPayload { access_token, user }),
+        Json(AuthPayload {
+            access_token,
+            user: Some(user),
+        }),
     ))
 }
 
@@ -133,14 +140,17 @@ pub async fn login(
     let (refresh_token, refresh_expires_at) =
         issue_refresh_token(user.id, state.refresh_token_secret.as_bytes())?;
 
-    user_login(&pool, user.id, refresh_expires_at as i64, &refresh_token).await?;
+    login_session(&pool, user.id, refresh_expires_at as i64, &refresh_token).await?;
 
     let jar = jar.add(build_refresh_cookie(refresh_token));
 
     Ok((
         StatusCode::OK,
         jar,
-        Json(AuthPayload { access_token, user }),
+        Json(AuthPayload {
+            access_token,
+            user: Some(user),
+        }),
     ))
 }
 
@@ -166,9 +176,7 @@ pub async fn logout(State(state): State<AppState>, jar: CookieJar) -> ApiResult<
         .bind(token_hash.as_slice())
         .execute(&state.pool)
         .await
-        .map_err(|error| {
-            eprintln!("Logout failed: {error}");
-
+        .map_err(|_| {
             api_error(
                 StatusCode::INTERNAL_SERVER_ERROR,
                 "Please try again later",
@@ -180,4 +188,147 @@ pub async fn logout(State(state): State<AppState>, jar: CookieJar) -> ApiResult<
     let jar = jar.add(build_refresh_cookie_removal());
 
     Ok((StatusCode::OK, jar, Json("Logout success".to_string())))
+}
+
+pub async fn refresh(State(state): State<AppState>, jar: CookieJar) -> ApiResult<AuthPayload> {
+    let invalid_token = || api_error(StatusCode::UNAUTHORIZED, "Invalid refresh token", None);
+
+    let Some(refresh_token) = jar
+        .get("refresh_token")
+        .map(|cookie| cookie.value().to_owned())
+    else {
+        return Err(invalid_token());
+    };
+
+    let token_hash = hash_refresh_token(&refresh_token);
+    let mut tx = state.pool.begin().await.map_err(|_| {
+        api_error(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "Please try again later",
+            Some("Error starting transaction"),
+        )
+    })?;
+
+    let session_id: Option<i64> = sqlx::query_scalar(
+        r#"
+        UPDATE refresh_tokens
+        SET consumed_at = unixepoch()
+        WHERE token_hash = ? AND consumed_at IS NULL
+        RETURNING session_id
+        "#,
+    )
+    .bind(token_hash.as_slice())
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| {
+        api_error(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "Please try again later",
+            Some("Failed to consume refresh token"),
+        )
+    })?;
+
+    let Some(session_id) = session_id else {
+        let reused_session_id: Option<i64> = sqlx::query_scalar(
+            r#"
+            SELECT session_id
+            FROM refresh_tokens
+            WHERE token_hash = ?
+            "#,
+        )
+        .bind(token_hash.as_slice())
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(|_| {
+            api_error(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "Please try again later",
+                Some("Failed to check refresh-token reuse"),
+            )
+        })?;
+
+        if let Some(session_id) = reused_session_id {
+            sqlx::query(
+                "UPDATE auth_sessions SET revoked_at = COALESCE(revoked_at, unixepoch()) WHERE id = ?",
+            )
+            .bind(session_id)
+            .execute(&mut *tx)
+            .await
+            .map_err(|_| {
+                api_error(
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "Please try again later",
+                    Some("Failed to revoke reused refresh-token session"),
+                )
+            })?;
+
+            tx.commit().await.map_err(|_| {
+                api_error(
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "Please try again later",
+                    Some("Failed to commit refresh-token reuse revocation"),
+                )
+            })?;
+        }
+
+        return Err(invalid_token());
+    };
+
+    let user_id: i64 = sqlx::query_scalar(
+        r#"
+        SELECT user_id
+        FROM auth_sessions
+        WHERE id = ?
+          AND revoked_at IS NULL
+          AND expires_at > unixepoch()
+        "#,
+    )
+    .bind(session_id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| {
+        api_error(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "Please try again later",
+            Some("Failed to validate refresh session"),
+        )
+    })?
+    .ok_or_else(invalid_token)?;
+
+    let (access_token, _) = issue_access_token(user_id, state.access_token_secret.as_bytes())?;
+    let (new_refresh_token, _) =
+        issue_refresh_token(user_id, state.refresh_token_secret.as_bytes())?;
+
+    let refresh_token_hash = hash_refresh_token(&new_refresh_token);
+    sqlx::query("INSERT INTO refresh_tokens (session_id, token_hash) VALUES (?, ?)")
+        .bind(session_id)
+        .bind(refresh_token_hash.as_slice())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| {
+            api_error(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "Please try again later!",
+                Some("Error when inserting to refresh_tokens"),
+            )
+        })?;
+
+    tx.commit().await.map_err(|_| {
+        api_error(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "Please try again later!",
+            Some("Error commiting the transaction"),
+        )
+    })?;
+
+    let jar = jar.add(build_refresh_cookie(new_refresh_token));
+
+    Ok((
+        StatusCode::OK,
+        jar,
+        Json(AuthPayload {
+            access_token,
+            user: None,
+        }),
+    ))
 }
