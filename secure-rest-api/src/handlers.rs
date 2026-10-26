@@ -9,8 +9,8 @@ use axum_extra::extract::cookie::CookieJar;
 use crate::{
     AppState,
     auth::{
-        build_refresh_cookie, hash_password, issue_access_token, issue_refresh_token, user_login,
-        validate_password, verify_password,
+        build_refresh_cookie, build_refresh_cookie_removal, hash_password, hash_refresh_token,
+        issue_access_token, issue_refresh_token, user_login, validate_password, verify_password,
     },
     models::{AuthPayload, AuthRequest, User},
     response::{ApiResult, api_error},
@@ -142,4 +142,42 @@ pub async fn login(
         jar,
         Json(AuthPayload { access_token, user }),
     ))
+}
+
+pub async fn logout(State(state): State<AppState>, jar: CookieJar) -> ApiResult<String> {
+    if let Some(refresh_token) = jar
+        .get("refresh_token")
+        .map(|cookie| cookie.value().to_owned())
+    {
+        let token_hash = hash_refresh_token(&refresh_token);
+
+        sqlx::query(
+            r#"
+            UPDATE auth_sessions
+            SET revoked_at = unixepoch()
+            WHERE id = (
+                SELECT session_id
+                FROM refresh_tokens
+                WHERE token_hash = ?
+            )
+            AND revoked_at IS NULL
+            "#,
+        )
+        .bind(token_hash.as_slice())
+        .execute(&state.pool)
+        .await
+        .map_err(|error| {
+            eprintln!("Logout failed: {error}");
+
+            api_error(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "Please try again later",
+                Some("Failed to revoke authentication session"),
+            )
+        })?;
+    }
+
+    let jar = jar.add(build_refresh_cookie_removal());
+
+    Ok((StatusCode::OK, jar, Json("Logout success".to_string())))
 }

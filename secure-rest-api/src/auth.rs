@@ -107,7 +107,7 @@ pub fn build_refresh_cookie(token: String) -> Cookie<'static> {
         .http_only(true)
         .secure(COOKIE_SECURE_FLAG)
         .same_site(SameSite::Strict)
-        .path("/auth/refresh")
+        .path("/auth")
         .build()
 }
 
@@ -164,4 +164,16 @@ pub async fn user_login(
     })?;
 
     Ok(())
+}
+
+pub fn build_refresh_cookie_removal() -> Cookie<'static> {
+    let mut cookie = Cookie::build("refresh_token")
+        .http_only(true)
+        .secure(COOKIE_SECURE_FLAG)
+        .same_site(SameSite::Strict)
+        .path("/auth")
+        .build();
+
+    cookie.make_removal();
+    cookie
 }

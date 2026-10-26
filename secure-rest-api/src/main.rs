@@ -12,7 +12,7 @@ use axum::{
 };
 use sqlx::{Pool, Sqlite};
 
-use crate::handlers::{hello_world, login, register};
+use crate::handlers::{hello_world, login, logout, register};
 
 #[derive(Clone)]
 pub struct AppState {
@@ -37,6 +37,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .route("/", get(hello_world))
         .route("/auth/register", post(register))
         .route("/auth/login", post(login))
+        .route("/auth/logout", post(logout))
         .with_state(AppState {
             pool,
             access_token_secret,
