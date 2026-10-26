@@ -1,4 +1,5 @@
 use axum::{Json, http::StatusCode};
+use axum_extra::extract::CookieJar;
 use serde::Serialize;
 
 #[derive(Serialize)]
@@ -19,4 +20,4 @@ pub fn api_error(status: StatusCode, message: &str) -> ApiError {
 }
 
 pub type ApiError = (StatusCode, Json<ErrorResponse>);
-pub type ApiResult<T> = Result<(StatusCode, Json<T>), ApiError>;
+pub type ApiResult<T> = Result<(StatusCode, CookieJar, Json<T>), ApiError>;

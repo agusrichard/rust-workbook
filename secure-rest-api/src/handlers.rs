@@ -4,9 +4,14 @@ use axum::{
     http::StatusCode,
 };
 
+use axum_extra::extract::cookie::CookieJar;
+
 use crate::{
     AppState,
-    auth::{hash_password, validate_password},
+    auth::{
+        build_refresh_cookie, hash_password, issue_access_token, issue_refresh_token,
+        validate_password, verify_password,
+    },
     models::{AuthPayload, AuthRequest, User},
     response::{ApiResult, api_error},
 };
@@ -17,6 +22,7 @@ pub async fn hello_world() -> String {
 
 pub async fn register(
     State(state): State<AppState>,
+    jar: CookieJar,
     payload: Result<Json<AuthRequest>, JsonRejection>,
 ) -> ApiResult<AuthPayload> {
     let Json(payload) =
@@ -58,11 +64,56 @@ pub async fn register(
         }
     })?;
 
+    let access_token = issue_access_token(user.id, state.access_token_secret.as_bytes())?;
+
+    let refresh_token = issue_refresh_token(user.id, state.refresh_token_secret.as_bytes())?;
+
+    let jar = jar.add(build_refresh_cookie(refresh_token));
+
     Ok((
         StatusCode::CREATED,
-        Json(AuthPayload {
-            token: "something".to_string(),
-            user: user,
-        }),
+        jar,
+        Json(AuthPayload { access_token, user }),
+    ))
+}
+
+pub async fn login(
+    State(state): State<AppState>,
+    jar: CookieJar,
+    payload: Result<Json<AuthRequest>, JsonRejection>,
+) -> ApiResult<AuthPayload> {
+    let Json(payload) =
+        payload.map_err(|_| api_error(StatusCode::BAD_REQUEST, "invalid JSON request"))?;
+
+    let pool = state.pool;
+
+    let user = sqlx::query_as::<_, User>("SELECT * FROM users WHERE username = ?")
+        .bind(payload.username)
+        .fetch_optional(&pool)
+        .await
+        .map_err(|_| {
+            api_error(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "Please try to login again later!",
+            )
+        })?
+        .ok_or_else(|| api_error(StatusCode::BAD_REQUEST, "Invalid username or password"))?;
+
+    if !verify_password(&payload.password, &user.password_hash) {
+        return Err(api_error(
+            StatusCode::UNAUTHORIZED,
+            "Invalid username or password",
+        ));
+    }
+
+    let access_token = issue_access_token(user.id, &state.access_token_secret.into_bytes())?;
+    let refresh_token = issue_refresh_token(user.id, &state.refresh_token_secret.into_bytes())?;
+
+    let jar = jar.add(build_refresh_cookie(refresh_token));
+
+    Ok((
+        StatusCode::OK,
+        jar,
+        Json(AuthPayload { access_token, user }),
     ))
 }

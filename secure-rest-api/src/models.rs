@@ -18,6 +18,6 @@ pub struct AuthRequest {
 
 #[derive(Serialize)]
 pub struct AuthPayload {
-    pub token: String,
+    pub access_token: String,
     pub user: User,
 }

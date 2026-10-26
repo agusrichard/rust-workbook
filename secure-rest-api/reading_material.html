@@ -866,7 +866,8 @@ async fn login(
     // Compare the password with its stored Argon2id hash.
     verify_password(&amp;body.password, &amp;user.password_hash).await?;
 
-    let access_token = issue_access_token(user.id, Duration::minutes(10))?;
+    let access_token = state.jwt
+        .issue_access_token(user.id, Duration::minutes(10))?;
 
     // Store only a hash of this token in the database.
     let refresh_token = state.sessions.create(user.id).await?;
@@ -885,6 +886,64 @@ async fn login(
           <li><code>HttpOnly</code> prevents JavaScript from reading the cookie.</li>
           <li><code>Secure</code> tells the browser to send it only over HTTPS.</li>
           <li><code>SameSite=Lax</code> helps reduce cross-site request forgery for a same-site application.</li>
+        </ul>
+      </div>
+
+      <div class="code-section">
+        <h3>Rust: issue a short-lived access token</h3>
+        <p>The JWT service creates an access token with a narrow lifetime and claims that the API can validate explicitly.</p>
+        <div class="code-label"><span>api/src/jwt.rs</span><span>JWT signing</span></div>
+        <pre><code>use jsonwebtoken::{encode, Algorithm, EncodingKey, Header};
+use serde::{Deserialize, Serialize};
+use time::{Duration, OffsetDateTime};
+
+#[derive(Debug, Serialize, Deserialize)]
+struct AccessTokenClaims {
+    sub: String,
+    iss: String,
+    aud: String,
+    iat: i64,
+    exp: i64,
+    token_use: String,
+}
+
+struct JwtService {
+    encoding_key: EncodingKey,
+    issuer: String,
+    audience: String,
+}
+
+impl JwtService {
+    fn issue_access_token(
+        &amp;self,
+        user_id: i64,
+        lifetime: Duration,
+    ) -&gt; Result&lt;String, ApiError&gt; {
+        let issued_at = OffsetDateTime::now_utc();
+        let expires_at = issued_at
+            .checked_add(lifetime)
+            .ok_or(ApiError::TokenCreation)?;
+
+        let claims = AccessTokenClaims {
+            sub: user_id.to_string(),
+            iss: self.issuer.clone(),
+            aud: self.audience.clone(),
+            iat: issued_at.unix_timestamp(),
+            exp: expires_at.unix_timestamp(),
+            token_use: "access".to_owned(),
+        };
+
+        let mut header = Header::new(Algorithm::EdDSA);
+        header.typ = Some("at+jwt".to_owned());
+
+        encode(&amp;header, &amp;claims, &amp;self.encoding_key)
+            .map_err(|_| ApiError::TokenCreation)
+    }
+}</code></pre>
+        <ul class="code-explanation">
+          <li>Load the Ed25519 private key once at startup from a secret manager; never commit it or read it for every request.</li>
+          <li>The verifier must require the same algorithm, issuer, audience, <code>token_use</code>, and <code>typ</code> values rather than trusting token-provided metadata.</li>
+          <li>Keep the lifetime short. Authorization still belongs to each endpoint, using server-trusted permissions or carefully scoped claims.</li>
         </ul>
       </div>
 
