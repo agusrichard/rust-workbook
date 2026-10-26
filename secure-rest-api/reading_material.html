@@ -736,42 +736,106 @@
     <section id="token-flow">
       <p class="label">3A · Pattern A request flow</p>
       <h2>From password sign-in to sign-out</h2>
-      <p class="section-intro">Here is the complete lifecycle when the Rust authentication service owns the user accounts and React calls the API directly.</p>
+      <p class="section-intro">Here is the complete lifecycle when the Rust authentication service owns the user accounts, React calls the API directly, and the database records refresh-token rotation.</p>
+
+      <div class="plain-box">
+        <strong>Three kinds of state work together</strong>
+        <p>The <code>users</code> row proves the password at sign-in. The short-lived access token proves the user’s identity to API endpoints and usually requires no database lookup. The <code>auth_sessions</code> and <code>refresh_tokens</code> rows control the longer-lived login, including rotation, reuse detection, and logout.</p>
+      </div>
+
+      <h3>The minimal database model</h3>
+      <div class="comparison-table" role="region" aria-label="Access and refresh authentication database model" tabindex="0">
+        <table>
+          <thead><tr><th>Table or credential</th><th>Important fields</th><th>Responsibility</th></tr></thead>
+          <tbody>
+            <tr><td><code>users</code></td><td><code>id</code>, <code>password_hash</code></td><td>Finds the account and verifies the submitted password with Argon2id.</td></tr>
+            <tr><td><code>auth_sessions</code></td><td><code>id</code>, <code>user_id</code>, <code>expires_at</code>, <code>revoked_at</code></td><td>Represents one login on one browser or device. Its <code>id</code> is also the refresh-token family identifier.</td></tr>
+            <tr><td><code>refresh_tokens</code></td><td><code>session_id</code>, <code>token_hash</code>, <code>consumed_at</code></td><td>Keeps the rotation history. Exactly one unconsumed token should exist for an active session.</td></tr>
+            <tr><td>Access token</td><td><code>sub</code>, <code>iss</code>, <code>aud</code>, <code>iat</code>, <code>exp</code>, token type</td><td>Lives briefly in React memory and is normally verified cryptographically rather than stored in the database.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p>The refresh cookie contains a cryptographically random secret. The database stores only a SHA-256 hash of that secret. Hashing the cookie value produces the lookup value, while a database leak does not reveal the credential that the browser can submit.</p>
 
       <ol class="flow-list">
         <li>
-          <h3>The user signs in</h3>
-          <p>React sends the email and password to the API over HTTPS. The API looks up the user and compares the submitted password with the stored password hash.</p>
+          <h3>React submits the credentials</h3>
+          <p>React sends the email and password over HTTPS. Rust loads the <code>users</code> row and verifies the submitted password against <code>password_hash</code>. A failure returns the same generic response whether the account or password was wrong.</p>
           <span class="request">POST /auth/login</span>
         </li>
         <li>
-          <h3>The API creates two tokens</h3>
-          <p>If the password is correct, the API returns a short-lived access token in JSON. It also sets a longer-lived refresh token as an HttpOnly cookie, which browser JavaScript cannot read.</p>
+          <h3>Rust creates the database-backed login</h3>
+          <p>Inside a transaction, Rust inserts one <code>auth_sessions</code> row and generates refresh token A. It stores <code>SHA-256(A)</code> in <code>refresh_tokens</code> with the new session ID and <code>consumed_at = NULL</code>. The raw token A is never stored in the database.</p>
         </li>
         <li>
-          <h3>React calls a protected endpoint</h3>
-          <p>React places the access token in the <code>Authorization</code> header. Rust middleware verifies the token before allowing the request to reach the endpoint.</p>
+          <h3>Rust returns the two credentials differently</h3>
+          <p>Rust returns a short-lived access token in JSON and sets raw refresh token A as a <code>Secure</code>, <code>HttpOnly</code> cookie restricted to the authentication routes. React keeps the access token only in memory; browser JavaScript cannot read the refresh cookie.</p>
+        </li>
+        <li>
+          <h3>React calls protected endpoints</h3>
+          <p>React places the access token in the <code>Authorization</code> header. Rust verifies its signature, algorithm, expiry, issuer, audience, and token type before the endpoint runs. This normally needs no session-table lookup, but the endpoint must still authorize the user’s requested action.</p>
           <span class="request">GET /api/me</span>
         </li>
         <li>
           <h3>The access token expires</h3>
-          <p>After a short time, the access token becomes invalid. The protected endpoint returns <code>401 Unauthorized</code>. This is expected—not an application failure.</p>
+          <p>After a few minutes, the access token becomes invalid and the API returns <code>401 Unauthorized</code>. React starts one refresh operation; concurrent failed requests share it rather than each rotating the cookie independently.</p>
         </li>
         <li>
-          <h3>React refreshes the session</h3>
-          <p>React calls the refresh endpoint. The browser automatically sends the HttpOnly refresh cookie. The API validates it, rotates it transactionally, and returns a new access token.</p>
+          <h3>Rust validates token A against the database</h3>
+          <p>React calls the refresh endpoint and the browser automatically sends token A. Rust hashes it, starts a database transaction, and loads its <code>refresh_tokens</code> row together with the parent <code>auth_sessions</code> row. The session must be unexpired and not revoked, and the token must have <code>consumed_at = NULL</code>.</p>
           <span class="request">POST /auth/refresh</span>
         </li>
         <li>
+          <h3>Rust rotates A into B atomically</h3>
+          <p>In the same transaction, Rust sets token A’s <code>consumed_at</code>, generates token B, and inserts <code>SHA-256(B)</code> with the same <code>session_id</code>. After commit, the response replaces the cookie with raw token B and returns a new access token. Either every database change succeeds or none does.</p>
+        </li>
+        <li>
+          <h3>A consumed token reveals possible theft</h3>
+          <p>If token A is presented again, its row is still available but <code>consumed_at</code> is already set. Rust treats that reuse as compromise and sets <code>auth_sessions.revoked_at</code>. Because A and B share the same session, the new token B is rejected too.</p>
+        </li>
+        <li>
           <h3>The user signs out</h3>
-          <p>The API revokes the refresh session and expires the cookie. React removes the access token from memory.</p>
+          <p>Rust identifies the session through the refresh token and sets <code>auth_sessions.revoked_at</code>. It expires the cookie, and React removes the access token from memory. All refresh tokens under that session become unusable, while other device sessions remain signed in.</p>
           <span class="request">POST /auth/logout</span>
         </li>
       </ol>
 
+      <div class="code-section">
+        <h3>How rotation changes the database</h3>
+        <p>The session row is stable. Rotation appends token history underneath it.</p>
+        <div class="code-label"><span>Database state</span><span>Token A → Token B</span></div>
+        <pre><code>After login
+
+auth_sessions
+id  user_id  expires_at  revoked_at
+10  42       future      NULL
+
+refresh_tokens
+id  session_id  token_hash  consumed_at
+1   10          hash(A)     NULL
+
+
+After one successful refresh
+
+auth_sessions
+id  user_id  expires_at  revoked_at
+10  42       future      NULL
+
+refresh_tokens
+id  session_id  token_hash  consumed_at
+1   10          hash(A)     timestamp
+2   10          hash(B)     NULL</code></pre>
+      </div>
+
       <div class="plain-box">
-        <strong>Rotation needs reuse detection</strong>
-        <p>When refresh token B replaces token A, A becomes invalid immediately. If A appears again, treat the token family as compromised and revoke the whole session—not just the reused token.</p>
+        <strong>Why consumed tokens remain in the database</strong>
+        <p>Deleting token A immediately would make a later copy look merely unknown. Retaining its hash and <code>consumed_at</code> lets Rust distinguish an invalid token from reuse of a credential that was previously valid. Old token rows can be removed when their parent session is safely past expiration.</p>
+      </div>
+
+      <div class="warning">
+        <strong>Logout and access-token lifetime</strong>
+        <p>Revoking the database session immediately stops refresh, but a stateless access token may remain valid until its short <code>exp</code> time. Applications that require immediate access-token revocation can include a session ID claim and check session state on each request, usually through a cache, at the cost of making validation stateful.</p>
       </div>
     </section>
 

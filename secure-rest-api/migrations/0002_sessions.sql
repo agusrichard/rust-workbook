@@ -13,7 +13,7 @@ CREATE TABLE refresh_tokens (
     id              INTEGER PRIMARY KEY,
     session_id      INTEGER NOT NULL,
     token_hash      BLOB NOT NULL UNIQUE,
-    consumed_at         INTEGER,
+    consumed_at     INTEGER,
 
     FOREIGN KEY (session_id)
         REFERENCES auth_sessions(id)
