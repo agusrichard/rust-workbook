@@ -8,8 +8,14 @@ argon2 = "0.6.0"
 axum = "0.8.9"
 axum-extra = { version = "0.12.6", features = ["cookie"] }
 dotenvy = "0.15.7"
+getrandom = "0.4.3"
 jsonwebtoken = { version = "11.1.0", features = ["rust_crypto"] }
 serde = { version = "1.0.229", features = ["derive"] }
 sha2 = "0.11.1"
 sqlx = { version = "0.8.6", features = ["runtime-tokio", "sqlite"] }
 tokio = { version = "1.54.1", features = ["full"] }
+
+[dev-dependencies]
+http-body-util = "0.1.5"
+serde_json = "1.0.145"
+tower = { version = "0.5.3", features = ["util"] }

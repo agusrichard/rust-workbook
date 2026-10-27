@@ -1,10 +1,13 @@
 use std::eprintln;
 
-use axum::{Json, http::StatusCode};
+use axum::{
+    Json,
+    http::{HeaderMap, HeaderValue, StatusCode, header::CACHE_CONTROL},
+};
 use axum_extra::extract::CookieJar;
 use serde::Serialize;
 
-#[derive(Serialize)]
+#[derive(Debug, Serialize)]
 pub struct ErrorResponse {
     pub message: String,
 }
@@ -25,4 +28,10 @@ pub fn api_error(status: StatusCode, message: &str, log_message: Option<&str>) -
 }
 
 pub type ApiError = (StatusCode, Json<ErrorResponse>);
-pub type ApiResult<T> = Result<(StatusCode, CookieJar, Json<T>), ApiError>;
+pub type ApiResult<T> = Result<(StatusCode, HeaderMap, CookieJar, Json<T>), ApiError>;
+
+pub fn no_store_headers() -> HeaderMap {
+    let mut headers = HeaderMap::new();
+    headers.insert(CACHE_CONTROL, HeaderValue::from_static("no-store"));
+    headers
+}
