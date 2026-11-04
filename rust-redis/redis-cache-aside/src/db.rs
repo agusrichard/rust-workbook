@@ -1,4 +1,12 @@
-use std::{collections::HashMap, thread::sleep, time::Duration};
+use std::{
+    collections::HashMap,
+    sync::{
+        RwLock,
+        atomic::{AtomicUsize, Ordering},
+    },
+    thread::sleep,
+    time::Duration,
+};
 
 use serde::{Deserialize, Serialize};
 
@@ -9,8 +17,10 @@ pub struct Product {
     pub price: u32,
 }
 
+/// Pretends to be a slow database. Safe to share between threads with `Arc`.
 pub struct FakeDb {
-    products: HashMap<u32, Product>,
+    products: RwLock<HashMap<u32, Product>>,
+    find_calls: AtomicUsize,
 }
 
 impl FakeDb {
@@ -32,18 +42,36 @@ impl FakeDb {
             )
         })
         .collect();
-        Self { products }
+        Self {
+            products: RwLock::new(products),
+            find_calls: AtomicUsize::new(0),
+        }
     }
 
     pub fn find(&self, id: u32) -> Option<Product> {
+        self.find_calls.fetch_add(1, Ordering::Relaxed);
         sleep(Duration::from_millis(500));
-        self.products.get(&id).cloned()
+        self.products
+            .read()
+            .expect("products lock poisoned")
+            .get(&id)
+            .cloned()
     }
 
-    pub fn update_price(&mut self, id: u32, price: u32) {
+    pub fn update_price(&self, id: u32, price: u32) {
         sleep(Duration::from_millis(500));
-        if let Some(product) = self.products.get_mut(&id) {
+        if let Some(product) = self
+            .products
+            .write()
+            .expect("products lock poisoned")
+            .get_mut(&id)
+        {
             product.price = price;
         }
+    }
+
+    /// How many times `find` has hit the "database" so far.
+    pub fn find_calls(&self) -> usize {
+        self.find_calls.load(Ordering::Relaxed)
     }
 }
