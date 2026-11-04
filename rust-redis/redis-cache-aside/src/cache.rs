@@ -25,6 +25,16 @@ end
 return 0
 "#;
 
+/// Outcome of trying to take the rebuild lock for a product.
+enum Lock {
+    /// We hold the lock: load from the database, then release it.
+    Acquired,
+    /// Another request holds it and is already loading: wait for the cache to fill.
+    HeldByOther,
+    /// Redis could not be reached: nothing to coordinate with, so load directly.
+    Unavailable,
+}
+
 fn key(id: u32) -> String {
     format!("product:{id}")
 }
@@ -56,19 +66,27 @@ impl ProductService {
         // On a miss, only the request holding the lock loads from the database
         let lock = lock_key(id);
         let token = rand::random::<u64>().to_string();
-        if self.acquire_lock(&lock, &token) {
-            // Another request may have filled the cache just before we got the lock
-            let result = match self.read_cache(id) {
-                Some(product) => {
-                    self.hit("cache HIT");
-                    Ok(product)
-                }
-                None => self.load_from_db(id),
-            };
-            self.release_lock(&lock, &token);
-            return result;
+        match self.acquire_lock(&lock, &token) {
+            Lock::Acquired => {
+                // Another request may have filled the cache just before we got the lock
+                let result = match self.read_cache(id) {
+                    Some(product) => {
+                        self.hit("cache HIT");
+                        Ok(product)
+                    }
+                    None => self.load_from_db(id),
+                };
+                self.release_lock(&lock, &token);
+                result
+            }
+            Lock::HeldByOther => self.wait_for_cache(id),
+            Lock::Unavailable => self.load_from_db(id),
         }
+    }
 
+    /// Polls the cache while another request loads the product. Falls back to
+    /// the database if it takes too long, for example if that request crashed.
+    fn wait_for_cache(&mut self, id: u32) -> RedisResult<Option<Product>> {
         println!("  waiting for another request to load it");
         for _ in 0..LOCK_RETRIES {
             sleep(LOCK_RETRY_DELAY);
@@ -143,9 +161,7 @@ impl ProductService {
         Ok(())
     }
 
-    /// Returns true if this request may load from the database. If Redis is
-    /// unreachable there is nothing to coordinate with, so it loads anyway.
-    fn acquire_lock(&mut self, lock: &str, token: &str) -> bool {
+    fn acquire_lock(&mut self, lock: &str, token: &str) -> Lock {
         // SET NX replies "OK" when we get the lock and nil when someone else holds it
         let reply: RedisResult<Option<String>> = redis::cmd("SET")
             .arg(lock)
@@ -155,10 +171,11 @@ impl ProductService {
             .arg(LOCK_TTL_MS)
             .query(&mut self.redis);
         match reply {
-            Ok(reply) => reply.is_some(),
+            Ok(Some(_)) => Lock::Acquired,
+            Ok(None) => Lock::HeldByOther,
             Err(e) => {
                 eprintln!("     redis lock failed, loading anyway: {e}");
-                true
+                Lock::Unavailable
             }
         }
     }
