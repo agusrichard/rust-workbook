@@ -95,6 +95,7 @@ pre code { background: none; padding: 0; font: inherit; overflow-wrap: normal; }
 table { border-collapse: collapse; width: 100%; font-size: 0.92rem; line-height: 1.45; }
 th, td { text-align: left; vertical-align: top; padding: 7px 14px 7px 0; border-bottom: 1px solid var(--line); }
 th { font-weight: 600; font-size: 0.78rem; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); }
+.cmds td:first-child { width: 46%; }
 
 figure { margin: 20px 0; }
 .diagram { overflow-x: auto; }
@@ -471,6 +472,27 @@ redis-benchmark -t set,get -n 100000   <span class="c">test capacity</span></cod
 <span class="c"># write path, after updating the database</span>
 &gt; DEL product:7</code></pre>
 <p>Deleting is safer than updating the cached value, because two concurrent updates can write to the cache in the wrong order.</p>
+<h3>Commands</h3>
+<div class="scroll">
+<table class="cmds">
+  <thead><tr><th>Command</th><th>What it's for</th></tr></thead>
+  <tbody>
+    <tr><td><code>GET key</code></td><td>Read the cached value. <code>(nil)</code> means a miss</td></tr>
+    <tr><td><code>SET key value EX seconds</code></td><td>Store a value with a TTL, ideally with random jitter. <code>SETEX</code> is the older form</td></tr>
+    <tr><td><code>SET key "NOT_FOUND" EX seconds</code></td><td>Negative caching: remember that a row doesn't exist, with a short TTL</td></tr>
+    <tr><td><code>MGET key1 key2 ...</code></td><td>Read several keys in one round trip</td></tr>
+    <tr><td><code>DEL key ...</code></td><td>Invalidate the cached copy after writing to the database</td></tr>
+    <tr><td><code>UNLINK key ...</code></td><td>Like <code>DEL</code>, but frees memory in the background. Use it for large values</td></tr>
+    <tr><td><code>SET lock:key token NX PX ms</code></td><td>Stampede lock: only one request rebuilds an expired key</td></tr>
+    <tr><td><code>EVAL</code> / <code>EVALSHA script</code></td><td>Release the stampede lock only if your token still owns it</td></tr>
+    <tr><td><code>INCR key</code></td><td>Count hits and misses yourself</td></tr>
+    <tr><td><code>GETEX key EX seconds</code></td><td>Read and extend the TTL in one step, so popular keys stay cached</td></tr>
+    <tr><td><code>TTL key</code></td><td>See how long a cached value has left</td></tr>
+    <tr><td><code>INFO stats</code></td><td>Server-wide <code>keyspace_hits</code>, <code>keyspace_misses</code> and <code>evicted_keys</code></td></tr>
+    <tr><td><code>CONFIG SET maxmemory-policy allkeys-lru</code></td><td>Make Redis evict old keys instead of refusing writes when memory is full</td></tr>
+  </tbody>
+</table>
+</div>
 <p class="watch"><b>Watch out:</b> when a popular key expires, thousands of requests can hit the database at once. This is a <strong>cache stampede</strong>. Let one request rebuild the value behind a short lock, and add random jitter to TTLs so that keys do not all expire together. Always set a TTL, so any stale data fixes itself eventually.</p>
 </section>
 
@@ -488,6 +510,23 @@ if redis.call("GET", KEYS[1]) == ARGV[1] then
   return redis.call("DEL", KEYS[1])
 end
 return 0</code></pre>
+<h3>Commands</h3>
+<div class="scroll">
+<table class="cmds">
+  <thead><tr><th>Command</th><th>What it's for</th></tr></thead>
+  <tbody>
+    <tr><td><code>SET key token NX PX ms</code></td><td>Take the lock. Replies <code>OK</code> if you won, <code>(nil)</code> if someone holds it</td></tr>
+    <tr><td><code>SET key token NX PX ms GET</code></td><td>Take the lock and get the current holder in one trip, so you can say who has it. Redis 7+</td></tr>
+    <tr><td><code>GET key</code></td><td>See who holds the lock</td></tr>
+    <tr><td><code>MGET key1 key2 ...</code></td><td>Check many locks at once, like every seat on a map</td></tr>
+    <tr><td><code>PTTL key</code></td><td>Milliseconds left on the lock</td></tr>
+    <tr><td><code>EVAL</code> / <code>EVALSHA script</code></td><td>Release safely: <code>GET</code>, compare the token, then <code>DEL</code>, as one atomic step</td></tr>
+    <tr><td><code>PEXPIRE key ms</code>, inside a script</td><td>Extend the lock while the work is still running, but only if the token matches</td></tr>
+    <tr><td><code>DEL key ...</code></td><td>Clear locks in tests or demos. Never release a real lock this way</td></tr>
+    <tr><td><code>WAIT numreplicas timeout</code></td><td>Wait for replicas to copy the lock, so a failover is less likely to lose it</td></tr>
+  </tbody>
+</table>
+</div>
 <p class="watch"><b>Watch out:</b> this lock is not perfectly safe. A paused process can outlive its TTL, and a failover can lose the lock because replication is asynchronous. Redlock uses several independent Redis nodes to reduce this risk, but its safety is debated. Use Redis locks to <strong>avoid duplicate work</strong>. If two holders would corrupt data, also protect the data itself, for example with a database constraint or a fencing token.</p>
 </section>
 
@@ -500,6 +539,31 @@ return 0</code></pre>
 &gt; ZRANGE game:scores 0 9 REV WITHSCORES  <span class="c">top 10</span>
 &gt; ZREVRANK game:scores ada           <span class="c">ada's rank, 0 is first</span>
 &gt; ZSCORE game:scores ada</code></pre>
+<h3>Commands</h3>
+<div class="scroll">
+<table class="cmds">
+  <thead><tr><th>Command</th><th>What it's for</th></tr></thead>
+  <tbody>
+    <tr><td><code>ZADD key GT CH score member</code></td><td>Keep each player's best score. Replies 1 for a first score or a new best, 0 otherwise</td></tr>
+    <tr><td><code>ZADD key LT CH score member</code></td><td>Keep the lowest score instead, for games where lower is better, like race times</td></tr>
+    <tr><td><code>ZINCRBY key delta member</code></td><td>Add points to a running total</td></tr>
+    <tr><td><code>ZSCORE key member</code></td><td>One player's score</td></tr>
+    <tr><td><code>ZMSCORE key m1 m2 ...</code></td><td>Several players' scores at once, like a friends list</td></tr>
+    <tr><td><code>ZRANGE key 0 9 REV WITHSCORES</code></td><td>Top 10. The same call over a window around a rank gives "players near me"</td></tr>
+    <tr><td><code>ZREVRANK key member [WITHSCORE]</code></td><td>A player's rank, 0 is first. <code>WITHSCORE</code> (Redis 7.2+) adds the score in the same trip</td></tr>
+    <tr><td><code>ZCARD key</code></td><td>How many players are on the board, for "#19 of 21"</td></tr>
+    <tr><td><code>ZCOUNT key min max</code></td><td>How many players scored in a range, e.g. for percentiles</td></tr>
+    <tr><td><code>ZRANGE key max min BYSCORE REV LIMIT 0 n</code></td><td>Players inside a score band, best first</td></tr>
+    <tr><td><code>ZREM key member</code></td><td>Remove a player, like a banned cheater</td></tr>
+    <tr><td><code>ZUNIONSTORE dest n key ... AGGREGATE MAX|SUM</code></td><td>Build a weekly board from daily ones: best single run, or all daily bests added up</td></tr>
+    <tr><td><code>ZINTERSTORE dest 2 board friends WEIGHTS 1 0</code></td><td>A friends-only board: keep players who are in both, with scores from the board</td></tr>
+    <tr><td><code>EXPIRE key seconds NX</code></td><td>Make a period's board delete itself. <code>NX</code> means later scores don't push the expiry back</td></tr>
+    <tr><td><code>MULTI</code> … <code>EXEC</code></td><td>Run <code>ZADD</code> and <code>EXPIRE</code> together, so a board is never left without a TTL</td></tr>
+    <tr><td><code>TTL key</code></td><td>Check when a board will expire</td></tr>
+    <tr><td><code>DEL key</code></td><td>Reset a board</td></tr>
+  </tbody>
+</table>
+</div>
 <p class="watch"><b>Watch out:</b> equal scores are ordered alphabetically by member, which is rarely fair. To reward whoever got there first, encode a timestamp in the score. Scores are 64-bit floats, so integers are only exact up to 2<sup>53</sup>. For daily or weekly boards, use one key per period, like <code>scores:2026-w45</code>, and give it a TTL.</p>
 </section>
 
@@ -524,6 +588,24 @@ return 0</code></pre>
   </tbody>
 </table>
 </div>
+<h3>Commands</h3>
+<div class="scroll">
+<table class="cmds">
+  <thead><tr><th>Command</th><th>What it's for</th></tr></thead>
+  <tbody>
+    <tr><td><code>INCR key</code></td><td>Fixed window: count this request and get the new total</td></tr>
+    <tr><td><code>EXPIRE key seconds NX</code></td><td>Start the window's TTL only on the first request. <code>PEXPIRE</code> for milliseconds</td></tr>
+    <tr><td><code>MULTI</code> … <code>EXEC</code></td><td>Run <code>INCR</code> and <code>EXPIRE</code> together, so a counter can never get stuck without a TTL</td></tr>
+    <tr><td><code>TTL key</code></td><td>Seconds until the window resets, for a <code>Retry-After</code> header</td></tr>
+    <tr><td><code>ZADD key now request-id</code></td><td>Sliding log: record a request with its timestamp as the score</td></tr>
+    <tr><td><code>ZREMRANGEBYSCORE key -inf window-start</code></td><td>Sliding log: drop requests older than the window</td></tr>
+    <tr><td><code>ZCARD key</code></td><td>Sliding log: count the requests left in the window</td></tr>
+    <tr><td><code>HSET key tokens n updated_at ts</code></td><td>Token bucket: save the tokens left and the last refill time</td></tr>
+    <tr><td><code>HMGET key tokens updated_at</code></td><td>Token bucket: read both fields</td></tr>
+    <tr><td><code>EVAL</code> / <code>EVALSHA script</code></td><td>Read, refill, take a token and write back as one atomic step. Needed for the sliding log and token bucket</td></tr>
+  </tbody>
+</table>
+</div>
 <p class="watch"><b>Watch out:</b> decide what happens when Redis is down. Most public APIs let requests through ("fail open"). Login and payment endpoints may be safer rejecting them ("fail closed").</p>
 </section>
 
@@ -537,6 +619,25 @@ return 0</code></pre>
    2) "56.4413"
 2) 1) "palermo"
    2) "190.4424"</span></code></pre>
+<h3>Commands</h3>
+<div class="scroll">
+<table class="cmds">
+  <thead><tr><th>Command</th><th>What it's for</th></tr></thead>
+  <tbody>
+    <tr><td><code>GEOADD key lon lat member ...</code></td><td>Add a place, or move one that is already there</td></tr>
+    <tr><td><code>GEOSEARCH key FROMLONLAT lon lat BYRADIUS r km ASC COUNT n WITHDIST</code></td><td>The n closest places to a point, nearest first, with distances</td></tr>
+    <tr><td><code>GEOSEARCH key FROMMEMBER m BYBOX w h km</code></td><td>Search around an existing member, or inside a rectangle such as the map on screen</td></tr>
+    <tr><td><code>GEOSEARCHSTORE dest key ...</code></td><td>Save the search result as a new key, to page through it or reuse it</td></tr>
+    <tr><td><code>GEODIST key m1 m2 km</code></td><td>Distance between two members</td></tr>
+    <tr><td><code>GEOPOS key member ...</code></td><td>The stored coordinates of members</td></tr>
+    <tr><td><code>GEOHASH key member ...</code></td><td>The standard geohash string, to share with other tools</td></tr>
+    <tr><td><code>ZREM key member</code></td><td>Remove a place. There is no <code>GEODEL</code></td></tr>
+    <tr><td><code>ZCARD key</code></td><td>How many places a key holds</td></tr>
+    <tr><td><code>ZADD seen now member</code></td><td>In a second Sorted Set, record when each moving object last reported in</td></tr>
+    <tr><td><code>ZRANGE seen -inf cutoff BYSCORE</code></td><td>Find objects that stopped reporting, then <code>ZREM</code> them from both keys</td></tr>
+  </tbody>
+</table>
+</div>
 <p class="watch"><b>Watch out:</b> longitude comes before latitude, the reverse of most map tools. Members cannot have their own TTL, so moving objects like drivers need regular updates, and old entries must be removed with <code>ZREM</code>. For large datasets, use one key per city or region so that no single key grows too big. Use <code>GEOSEARCH</code> in new code, not the older <code>GEORADIUS</code>.</p>
 </section>
 
@@ -553,6 +654,28 @@ return 0</code></pre>
 <pre><code>&gt; XGROUP CREATE order:42 billing 0
 &gt; XREADGROUP GROUP billing worker-1 COUNT 10 BLOCK 5000 STREAMS order:42 &gt;
 &gt; XACK order:42 billing 1793577600000-0</code></pre>
+<h3>Commands</h3>
+<div class="scroll">
+<table class="cmds">
+  <thead><tr><th>Command</th><th>What it's for</th></tr></thead>
+  <tbody>
+    <tr><td><code>XADD key * field value ...</code></td><td>Append an event. <code>*</code> lets Redis pick the ID</td></tr>
+    <tr><td><code>XADD key MAXLEN ~ n * ...</code></td><td>Append and trim old entries in the same step</td></tr>
+    <tr><td><code>XRANGE key - + [COUNT n]</code></td><td>Replay events oldest first. Start from the last ID you saw to read in pages</td></tr>
+    <tr><td><code>XREVRANGE key + - COUNT 1</code></td><td>The latest event</td></tr>
+    <tr><td><code>XLEN key</code></td><td>How many events the stream holds</td></tr>
+    <tr><td><code>XREAD BLOCK ms STREAMS key $</code></td><td>Wait for new events without a consumer group. Every reader gets every event</td></tr>
+    <tr><td><code>XGROUP CREATE key group 0 MKSTREAM</code></td><td>Create a consumer group, and the stream if it doesn't exist yet</td></tr>
+    <tr><td><code>XREADGROUP GROUP g worker COUNT n BLOCK ms STREAMS key &gt;</code></td><td>Get new events for this worker. Each goes to one worker in the group</td></tr>
+    <tr><td><code>XACK key group id ...</code></td><td>Confirm an event is handled, removing it from the pending list</td></tr>
+    <tr><td><code>XPENDING key group</code></td><td>Events delivered but not yet confirmed, and which worker has them</td></tr>
+    <tr><td><code>XAUTOCLAIM key group worker min-idle-ms 0</code></td><td>Take over events stuck with a crashed worker. <code>XCLAIM</code> does it for specific IDs</td></tr>
+    <tr><td><code>XTRIM key MINID id</code></td><td>Delete events older than an ID, once a snapshot covers them</td></tr>
+    <tr><td><code>XINFO STREAM key</code> / <code>XINFO GROUPS key</code></td><td>Inspect the stream, its groups and how far behind they are</td></tr>
+    <tr><td><code>HSET order:42:state field value ...</code></td><td>Save the current state built from the events, so reads don't replay the whole log</td></tr>
+  </tbody>
+</table>
+</div>
 <p class="watch"><b>Watch out:</b> in event sourcing, the log is your source of truth, and Redis keeps it all in memory. Long histories get expensive, and with default settings a crash can lose recent events. Enable AOF if you depend on the log. Trimming with <code>MAXLEN</code> saves memory but deletes history you may need to replay. Streams are a great fit for learning and for short-lived event pipelines. For permanent records, teams often keep the full log in a database or Kafka. Delivery is at-least-once, so make your workers safe to run twice.</p>
 </section>
 
@@ -576,6 +699,23 @@ return 0</code></pre>
     <tr><td>Receivers</td><td>All subscribers</td><td>Each group, or one worker within it</td><td>One worker</td></tr>
     <tr><td>Replay history</td><td>No</td><td>Yes</td><td>No</td></tr>
     <tr><td>Best for</td><td>Live signals</td><td>Events you must not lose</td><td>Simple job queues</td></tr>
+  </tbody>
+</table>
+</div>
+<h3>Commands</h3>
+<div class="scroll">
+<table class="cmds">
+  <thead><tr><th>Command</th><th>What it's for</th></tr></thead>
+  <tbody>
+    <tr><td><code>SUBSCRIBE channel ...</code></td><td>Listen on channels. The connection now only takes subscribe commands</td></tr>
+    <tr><td><code>UNSUBSCRIBE [channel ...]</code></td><td>Stop listening. With no channel, leaves all of them</td></tr>
+    <tr><td><code>PSUBSCRIBE pattern ...</code></td><td>Listen on every channel matching a pattern, like <code>chat:*</code></td></tr>
+    <tr><td><code>PUNSUBSCRIBE [pattern ...]</code></td><td>Stop listening on patterns</td></tr>
+    <tr><td><code>PUBLISH channel message</code></td><td>Send a message. Replies with how many subscribers got it</td></tr>
+    <tr><td><code>PING</code></td><td>Keep a quiet subscriber connection alive and check it still works</td></tr>
+    <tr><td><code>PUBSUB CHANNELS [pattern]</code></td><td>Channels that currently have subscribers</td></tr>
+    <tr><td><code>PUBSUB NUMSUB channel ...</code></td><td>How many subscribers each channel has</td></tr>
+    <tr><td><code>SSUBSCRIBE</code> / <code>SPUBLISH</code> / <code>SUNSUBSCRIBE</code></td><td>Sharded Pub/Sub for Cluster: messages stay on the node that owns the channel. Redis 7+</td></tr>
   </tbody>
 </table>
 </div>
