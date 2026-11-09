@@ -1,0 +1,104 @@
+# Single node (default):  docker compose up -d
+# Cluster (6 nodes):      docker compose --profile cluster up -d
+#
+# The cluster uses host networking so that nodes advertise 127.0.0.1:7001-7006,
+# which programs on this machine can follow when Redis redirects them.
+# On Docker Desktop, turn on Settings > Resources > Network > Enable host networking.
+
+x-cluster-node: &cluster-node
+  image: redis:8
+  profiles: ["cluster"]
+  network_mode: host
+  volumes:
+    - ./redis/cluster.conf:/usr/local/etc/redis/cluster.conf:ro
+
+x-healthcheck: &healthcheck
+  interval: 2s
+  timeout: 3s
+  retries: 10
+
+services:
+  redis:
+    image: redis:8
+    # Only reachable from this machine
+    ports:
+      - "127.0.0.1:6379:6379"
+    # Turn on AOF so data survives container restarts
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      <<: *healthcheck
+      test: ["CMD", "redis-cli", "ping"]
+
+  redis-node-1:
+    <<: *cluster-node
+    command: ["redis-server", "/usr/local/etc/redis/cluster.conf", "--port", "7001"]
+    healthcheck:
+      <<: *healthcheck
+      test: ["CMD", "redis-cli", "-p", "7001", "ping"]
+
+  redis-node-2:
+    <<: *cluster-node
+    command: ["redis-server", "/usr/local/etc/redis/cluster.conf", "--port", "7002"]
+    healthcheck:
+      <<: *healthcheck
+      test: ["CMD", "redis-cli", "-p", "7002", "ping"]
+
+  redis-node-3:
+    <<: *cluster-node
+    command: ["redis-server", "/usr/local/etc/redis/cluster.conf", "--port", "7003"]
+    healthcheck:
+      <<: *healthcheck
+      test: ["CMD", "redis-cli", "-p", "7003", "ping"]
+
+  redis-node-4:
+    <<: *cluster-node
+    command: ["redis-server", "/usr/local/etc/redis/cluster.conf", "--port", "7004"]
+    healthcheck:
+      <<: *healthcheck
+      test: ["CMD", "redis-cli", "-p", "7004", "ping"]
+
+  redis-node-5:
+    <<: *cluster-node
+    command: ["redis-server", "/usr/local/etc/redis/cluster.conf", "--port", "7005"]
+    healthcheck:
+      <<: *healthcheck
+      test: ["CMD", "redis-cli", "-p", "7005", "ping"]
+
+  redis-node-6:
+    <<: *cluster-node
+    command: ["redis-server", "/usr/local/etc/redis/cluster.conf", "--port", "7006"]
+    healthcheck:
+      <<: *healthcheck
+      test: ["CMD", "redis-cli", "-p", "7006", "ping"]
+
+  # Joins the nodes into 3 primaries with 1 replica each, then exits.
+  # Skips the setup if the cluster already exists.
+  redis-cluster-init:
+    image: redis:8
+    profiles: ["cluster"]
+    network_mode: host
+    restart: "no"
+    depends_on:
+      redis-node-1: { condition: service_healthy }
+      redis-node-2: { condition: service_healthy }
+      redis-node-3: { condition: service_healthy }
+      redis-node-4: { condition: service_healthy }
+      redis-node-5: { condition: service_healthy }
+      redis-node-6: { condition: service_healthy }
+    command:
+      - sh
+      - -c
+      - |
+        if redis-cli -p 7001 cluster info | grep -q cluster_state:ok; then
+          echo "Cluster is already set up"
+        else
+          redis-cli --cluster create \
+            127.0.0.1:7001 127.0.0.1:7002 127.0.0.1:7003 \
+            127.0.0.1:7004 127.0.0.1:7005 127.0.0.1:7006 \
+            --cluster-replicas 1 --cluster-yes
+        fi
+
+volumes:
+  redis-data:

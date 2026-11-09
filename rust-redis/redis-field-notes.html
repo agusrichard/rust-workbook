@@ -1,0 +1,762 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>body { margin: 0; }</style>
+<title>Redis Field Notes</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: one reading column, with a quiet sticky contents list beside it on wide screens. */
+:root {
+  --bg: #fbfcfd;
+  --fg: #1b2027;
+  --muted: #5a6370;
+  --line: #dde2e8;
+  --code-bg: #f1f3f6;
+  --accent: #b3123a;
+  --sans: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #14171c; --fg: #e6e9ee; --muted: #9aa4b2; --line: #2c323a; --code-bg: #1d2228; --accent: #ff8099;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #14171c; --fg: #e6e9ee; --muted: #9aa4b2; --line: #2c323a; --code-bg: #1d2228; --accent: #ff8099;
+  color-scheme: dark;
+}
+html { scroll-behavior: smooth; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font: 400 17px/1.65 var(--sans);
+}
+.page {
+  max-width: 1000px;
+  margin-inline: auto;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 56px 80px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 32px;
+}
+main { min-width: 0; max-width: 680px; }
+header p { color: var(--muted); }
+h1, h2, h3 { line-height: 1.25; text-wrap: balance; font-weight: 600; }
+h1 { font-size: 2.3rem; letter-spacing: -0.02em; margin: 0 0 12px; }
+h2 {
+  font-size: 1.5rem;
+  letter-spacing: -0.01em;
+  margin: 56px 0 12px;
+  padding-top: 24px;
+  border-top: 1px solid var(--line);
+  scroll-margin-top: 16px;
+}
+h3 { font-size: 1.15rem; margin: 36px 0 2px; scroll-margin-top: 16px; }
+p { margin: 0 0 14px; }
+ul { margin: 0 0 14px; padding-left: 20px; }
+li { margin-bottom: 6px; }
+a { color: var(--accent); text-underline-offset: 2px; }
+a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+strong { font-weight: 600; }
+
+nav { font-size: 0.9rem; }
+nav .group { color: var(--muted); font-size: 0.72rem; letter-spacing: 0.08em; text-transform: uppercase; margin: 0 0 4px; }
+nav ul { list-style: none; padding: 0; margin: 0 0 16px; display: flex; flex-wrap: wrap; gap: 2px 16px; }
+nav li { margin: 0; }
+nav a { color: var(--fg); text-decoration: none; }
+nav a:hover { color: var(--accent); }
+
+code { font: 400 0.86em var(--mono); background: var(--code-bg); padding: 1px 4px; border-radius: 3px; overflow-wrap: anywhere; }
+pre {
+  margin: 0 0 14px;
+  padding: 12px 14px;
+  background: var(--code-bg);
+  border-radius: 4px;
+  overflow-x: auto;
+  font: 400 0.82rem/1.6 var(--mono);
+}
+pre code { background: none; padding: 0; font: inherit; overflow-wrap: normal; }
+.c { color: var(--muted); }
+
+.uses { font: 400 0.8rem var(--mono); color: var(--muted); margin-bottom: 10px; }
+.watch { font-size: 0.95rem; }
+.watch b { color: var(--accent); font-weight: 600; }
+
+.scroll { overflow-x: auto; margin: 0 0 14px; }
+table { border-collapse: collapse; width: 100%; font-size: 0.92rem; line-height: 1.45; }
+th, td { text-align: left; vertical-align: top; padding: 7px 14px 7px 0; border-bottom: 1px solid var(--line); }
+th { font-weight: 600; font-size: 0.78rem; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); }
+.cmds td:first-child { width: 46%; }
+
+figure { margin: 20px 0; }
+.diagram { overflow-x: auto; }
+.diagram svg { display: block; width: 100%; min-width: 580px; height: auto; color: var(--fg); }
+.diagram text { font: 400 12px var(--sans); fill: currentColor; }
+.diagram text.m { font: 400 11px var(--mono); }
+.diagram text.b { font-weight: 600; font-size: 13px; }
+.diagram text.s { fill: var(--muted); }
+.diagram .box { fill: none; stroke: currentColor; stroke-width: 1; }
+.diagram .wire { fill: none; stroke: currentColor; stroke-width: 1; }
+.diagram .hot { fill: none; stroke: var(--accent); stroke-width: 2; }
+.diagram .dash { stroke-dasharray: 4 4; }
+.diagram text.a { fill: var(--accent); }
+figcaption { font-size: 0.88rem; color: var(--muted); margin-top: 8px; }
+
+@media (min-width: 960px) {
+  .page { grid-template-columns: 190px minmax(0, 680px); gap: 56px; }
+  nav { position: sticky; top: calc(56px + env(safe-area-inset-top, 0px)); align-self: start; }
+  nav ul { display: block; }
+  nav li { margin-bottom: 3px; }
+}
+@media (max-width: 480px) {
+  body { font-size: 16px; }
+  h1 { font-size: 1.9rem; }
+  .page { padding-block: 32px 56px; }
+}
+</style>
+</head>
+<body>
+
+<div class="page">
+<nav aria-label="Contents">
+  <p class="group">Basics</p>
+  <ul>
+    <li><a href="#what">What Redis is</a></li>
+    <li><a href="#how">How it works</a></li>
+    <li><a href="#types">Data types</a></li>
+    <li><a href="#expiry">Expiry and eviction</a></li>
+    <li><a href="#persistence">Persistence</a></li>
+    <li><a href="#atomic">Atomic operations</a></li>
+    <li><a href="#tradeoffs">Pros and cons</a></li>
+    <li><a href="#fit">When to use it</a></li>
+  </ul>
+  <p class="group">Distributed Redis</p>
+  <ul>
+    <li><a href="#replication">Replication</a></li>
+    <li><a href="#scaling">Failover and Cluster</a></li>
+    <li><a href="#load">Handling heavy load</a></li>
+  </ul>
+  <p class="group">Usages</p>
+  <ul>
+    <li><a href="#cache">Cache</a></li>
+    <li><a href="#lock">Distributed lock</a></li>
+    <li><a href="#leaderboard">Leaderboards</a></li>
+    <li><a href="#rate">Rate limiting</a></li>
+    <li><a href="#geo">Proximity search</a></li>
+    <li><a href="#events">Event sourcing</a></li>
+    <li><a href="#pubsub">Pub/Sub</a></li>
+  </ul>
+  <p class="group">Practice</p>
+  <ul>
+    <li><a href="#gotchas">Know before production</a></li>
+    <li><a href="#rust">Start with Rust</a></li>
+  </ul>
+</nav>
+
+<main>
+<header>
+  <h1>Redis Field Notes</h1>
+  <p>How Redis works, and how to use it for seven common jobs. In the examples, lines starting with <code>&gt;</code> are commands you can type into <code>redis-cli</code>. Grey text is a note or a reply.</p>
+</header>
+
+<section>
+<h2 id="what">What Redis is</h2>
+<p>Redis is a server that keeps data in memory and lets you work with it over the network. Your app connects on port 6379, sends a command like <code>GET user:42</code>, and gets a reply, usually in well under a millisecond on a local network.</p>
+<p>A plain cache only stores values. Redis stores <strong>data structures</strong>: lists, sets, sorted sets, streams and more. Each one has its own commands that run on the server. You can ask "what is this player's rank?" without downloading the whole leaderboard. Nearly every usage below comes from picking the right structure.</p>
+</section>
+
+<section>
+<h2 id="how">How it works</h2>
+<p>Redis is fast for two reasons. Memory is far quicker than disk, and commands run <strong>one at a time</strong> on a single main thread. With no locks to manage and no two commands running together, every single command is atomic.</p>
+
+<figure>
+  <div class="diagram">
+    <svg viewBox="0 0 680 270" role="img" aria-label="Commands from many clients wait in one queue. A single main thread runs them one at a time against memory and replies. Saving to disk and copying to replicas happen in the background.">
+      <defs>
+        <marker id="arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0 0 L8 4 L0 8 Z" fill="currentColor"></path>
+        </marker>
+      </defs>
+
+      <rect class="box" x="0.5" y="14.5" width="90" height="36"></rect>
+      <rect class="box" x="0.5" y="62.5" width="90" height="36"></rect>
+      <rect class="box" x="0.5" y="110.5" width="90" height="36"></rect>
+      <text x="45" y="37" text-anchor="middle">Client A</text>
+      <text x="45" y="85" text-anchor="middle">Client B</text>
+      <text x="45" y="133" text-anchor="middle">Client C</text>
+
+      <text class="s" x="125" y="24" text-anchor="middle">commands</text>
+      <line class="wire" x1="91" y1="32" x2="158" y2="62" marker-end="url(#arrow)"></line>
+      <line class="wire" x1="91" y1="80" x2="158" y2="80" marker-end="url(#arrow)"></line>
+      <line class="wire" x1="91" y1="128" x2="158" y2="98" marker-end="url(#arrow)"></line>
+
+      <rect class="box" x="160.5" y="14.5" width="110" height="132"></rect>
+      <text class="b" x="215" y="32" text-anchor="middle">Queue</text>
+      <rect class="box" x="172.5" y="40.5" width="86" height="26"></rect>
+      <rect class="box" x="172.5" y="72.5" width="86" height="26"></rect>
+      <rect class="box" x="172.5" y="104.5" width="86" height="26"></rect>
+      <text class="m" x="215" y="57" text-anchor="middle">GET a</text>
+      <text class="m" x="215" y="89" text-anchor="middle">INCR b</text>
+      <text class="m" x="215" y="121" text-anchor="middle">SET a 1</text>
+
+      <text class="s" x="295" y="70" text-anchor="middle">next</text>
+      <line class="wire" x1="271" y1="80" x2="318" y2="80" marker-end="url(#arrow)"></line>
+
+      <rect class="hot" x="320" y="44" width="150" height="72"></rect>
+      <text class="b" x="395" y="74" text-anchor="middle">Main thread</text>
+      <text class="s" x="395" y="94" text-anchor="middle">one command at a time</text>
+
+      <text class="s" x="505" y="70" text-anchor="middle">read / write</text>
+      <line class="wire" x1="471" y1="80" x2="538" y2="80" marker-end="url(#arrow)"></line>
+
+      <rect class="box" x="540.5" y="44.5" width="139" height="72"></rect>
+      <text class="b" x="610" y="74" text-anchor="middle">Memory</text>
+      <text class="s" x="610" y="94" text-anchor="middle">all your data</text>
+
+      <polyline class="wire" points="395,117 395,186 45,186 45,149" marker-end="url(#arrow)"></polyline>
+      <text class="s" x="220" y="180" text-anchor="middle">replies, in order</text>
+
+      <polyline class="wire" points="580,117 580,160 480,160 480,218" marker-end="url(#arrow)"></polyline>
+      <text class="s" x="530" y="153" text-anchor="middle">saved in background</text>
+      <line class="wire" x1="640" y1="117" x2="640" y2="218" marker-end="url(#arrow)"></line>
+      <text class="s" x="634" y="192" text-anchor="end">async copy</text>
+
+      <rect class="box" x="420.5" y="220.5" width="120" height="44"></rect>
+      <text x="480" y="247" text-anchor="middle">Disk: RDB, AOF</text>
+      <rect class="box" x="559.5" y="220.5" width="120" height="44"></rect>
+      <text x="620" y="247" text-anchor="middle">Replica</text>
+    </svg>
+  </div>
+  <figcaption>All clients share one line. The main thread is the single point every command passes through, so one slow command delays everyone behind it.</figcaption>
+</figure>
+
+<p>Newer versions use extra threads for network reads and writes and some background work, but commands still execute one by one. That one fact explains most Redis advice: keep commands short.</p>
+</section>
+
+<section>
+<h2 id="types">Data types</h2>
+<p>Keys are strings, usually named with colons, like <code>user:42:cart</code>. The value can be any of these types.</p>
+<div class="scroll">
+<table>
+  <thead><tr><th>Type</th><th>Think of it as</th><th>Good for</th></tr></thead>
+  <tbody>
+    <tr><td>String</td><td>Text, a number or bytes, up to 512 MB</td><td>Cache entries, counters, locks</td></tr>
+    <tr><td>Hash</td><td>A small object with named fields</td><td>Profiles, sessions</td></tr>
+    <tr><td>List</td><td>A chain you push to and pop from at the ends</td><td>Simple job queues</td></tr>
+    <tr><td>Set</td><td>A bag of unique values</td><td>Tags, "who liked this"</td></tr>
+    <tr><td>Sorted Set</td><td>Unique values, each with a score, kept in order</td><td>Rankings, time windows</td></tr>
+    <tr><td>Stream</td><td>An append-only log of entries</td><td>Event logs, reliable queues</td></tr>
+    <tr><td>Geo</td><td>A Sorted Set where the score encodes a location</td><td>Nearby search</td></tr>
+    <tr><td>Bitmap, HyperLogLog</td><td>Very compact flags and approximate counts</td><td>Daily active users, unique visitors</td></tr>
+  </tbody>
+</table>
+</div>
+</section>
+
+<section>
+<h2 id="expiry">Expiry and eviction</h2>
+<p>Memory is limited, so Redis gives you two ways to remove data.</p>
+<p><strong>Expiry</strong> is your choice: <code>SET key value EX 60</code> deletes the key after 60 seconds. Redis removes expired keys when they are next accessed, and also samples random keys in the background. An expired key is never returned, but it can hold memory for a short while.</p>
+<p><strong>Eviction</strong> is what happens when Redis reaches <code>maxmemory</code>. The default policy, <code>noeviction</code>, rejects new writes with an error. For a cache, set <code>allkeys-lru</code> or <code>allkeys-lfu</code> so that the least useful keys are dropped. Other policies, such as <code>volatile-lru</code>, only touch keys that have a TTL.</p>
+</section>
+
+<section>
+<h2 id="persistence">Persistence</h2>
+<p>Data lives in memory, but Redis can save it to disk so that it survives a restart.</p>
+<div class="scroll">
+<table>
+  <thead><tr><th></th><th>RDB snapshot</th><th>AOF log</th></tr></thead>
+  <tbody>
+    <tr><td>How</td><td>A forked child process writes the whole dataset every so often</td><td>Every write command is appended to a file</td></tr>
+    <tr><td>You can lose</td><td>Everything since the last snapshot</td><td>About 1 second, with the default <code>everysec</code></td></tr>
+    <tr><td>Restart</td><td>Fast</td><td>Slower, though the log is compacted over time</td></tr>
+  </tbody>
+</table>
+</div>
+<p>You can run both. If you only use Redis as a cache, you may not need either. Out of the box, RDB is on and AOF is off.</p>
+</section>
+
+<section>
+<h2 id="atomic">Atomic operations</h2>
+<p>A single command is atomic. Many real tasks need several commands, and there are three tools for that.</p>
+<ul>
+  <li><strong>Pipeline:</strong> send many commands in one network trip. This is only for speed. Other clients' commands can run in between.</li>
+  <li><strong>MULTI / EXEC:</strong> queue commands and run them as one block. There is no rollback: if one fails at runtime, the others still apply. Add <code>WATCH</code> to abort when a key changes first.</li>
+  <li><strong>Lua script (<code>EVAL</code>):</strong> runs logic on the server as one atomic step, including "read, decide, then write", which MULTI cannot do. Keep scripts short, because nothing else runs until they finish.</li>
+</ul>
+</section>
+
+<section>
+<h2 id="tradeoffs">Pros and cons</h2>
+<h3>Pros</h3>
+<ul>
+  <li><strong>Very fast:</strong> most commands finish in well under a millisecond.</li>
+  <li><strong>Useful data structures:</strong> the server does the ranking, counting and searching, so your app has less code to write.</li>
+  <li><strong>Atomic commands:</strong> many concurrency problems go away, because commands never overlap.</li>
+  <li><strong>Built-in expiry:</strong> short-lived data cleans itself up.</li>
+  <li><strong>One tool, many jobs:</strong> a single Redis can handle caching, rate limiting and messaging.</li>
+  <li><strong>Easy to start:</strong> the commands are simple, and nearly every language has a client library.</li>
+</ul>
+<h3>Cons</h3>
+<ul>
+  <li><strong>Memory is expensive:</strong> your whole dataset has to fit in RAM, which costs far more than disk.</li>
+  <li><strong>Weaker durability:</strong> a crash or failover can lose recent writes, even with persistence turned on.</li>
+  <li><strong>Limited querying:</strong> you mostly fetch data by key, so you design keys around your questions up front. There are no SQL joins, and ad-hoc questions are hard to answer.</li>
+  <li><strong>One slow command hurts everyone:</strong> all clients wait behind it on the main thread.</li>
+  <li><strong>No rollback:</strong> <code>MULTI</code> cannot undo commands, so it does not give you database-style transactions.</li>
+  <li><strong>One more system to run:</strong> you have to monitor it, plan its memory and keep it in sync with your database. Cluster adds further limits on multi-key commands.</li>
+</ul>
+</section>
+
+<section>
+<h2 id="fit">When to use it, and when not to</h2>
+<p>A good rule of thumb: Redis fits when you can find the data by key, it fits in memory, and losing the last second of it would be a small problem.</p>
+<h3>Use Redis when</h3>
+<ul>
+  <li>The same data is read very often, and your database is too slow or too busy to serve it.</li>
+  <li>Data is short-lived or can be rebuilt, like sessions, cached results and rate limit counters.</li>
+  <li>Several servers need to share fast state, like counters, locks or online status.</li>
+  <li>The problem matches a data structure, like rankings, nearby search or queues.</li>
+  <li>You need live messaging between servers without running a separate message broker.</li>
+</ul>
+<h3>Choose something else when</h3>
+<div class="scroll">
+<table>
+  <thead><tr><th>You need</th><th>Better choice</th></tr></thead>
+  <tbody>
+    <tr><td>The main record of orders, payments or users</td><td>A relational database, like PostgreSQL</td></tr>
+    <tr><td>Joins, reports and ad-hoc queries</td><td>PostgreSQL, or an analytics database like ClickHouse</td></tr>
+    <tr><td>Far more data than fits in memory</td><td>A disk-based database</td></tr>
+    <tr><td>An event log kept for months or years</td><td>Kafka, or a database table</td></tr>
+    <tr><td>Rich full-text search</td><td>Elasticsearch or OpenSearch</td></tr>
+    <tr><td>Large files such as images or videos</td><td>Object storage, like S3</td></tr>
+    <tr><td>Locks where a mistake would corrupt data</td><td>Database row locks, or etcd</td></tr>
+    <tr><td>A small cache on a single server</td><td>An in-process cache, like the <code>moka</code> crate in Rust</td></tr>
+  </tbody>
+</table>
+</div>
+<p>Redis usually sits next to your main database and rarely replaces it. The database keeps the data safe, and Redis makes it fast.</p>
+</section>
+
+<section>
+<h2 id="replication">Replication</h2>
+<p>A replica is a copy of the primary that stays up to date. Writes go to the primary only. Replicas give you backups, a standby for failover, and extra capacity for reads.</p>
+<p>When a replica first connects, the primary takes an RDB snapshot and sends it over. After that, the primary streams every write command to the replica as it happens. If the connection drops for a moment, the replica asks to continue from its last position, using a buffer of recent writes on the primary called the <strong>backlog</strong>. If the replica was away too long and the backlog has moved on, it needs a full sync again, which is slow on a big dataset. Size <code>repl-backlog-size</code> (1 MB by default) to cover a few minutes of writes.</p>
+<p>The key detail is that the primary replies to the client <strong>before</strong> any replica has the write.</p>
+
+<figure>
+  <div class="diagram">
+    <svg viewBox="0 0 600 300" role="img" aria-label="The client writes x to the primary and gets OK. The primary crashes before copying the write. The replica is promoted and returns nil for x, so the acknowledged write is lost.">
+      <defs>
+        <marker id="arrow-seq" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0 0 L8 4 L0 8 Z" fill="currentColor"></path>
+        </marker>
+      </defs>
+
+      <rect class="box" x="25.5" y="10.5" width="110" height="32"></rect>
+      <rect class="box" x="245.5" y="10.5" width="110" height="32"></rect>
+      <rect class="box" x="465.5" y="10.5" width="110" height="32"></rect>
+      <text class="b" x="80" y="31" text-anchor="middle">Client</text>
+      <text class="b" x="300" y="31" text-anchor="middle">Primary</text>
+      <text class="b" x="520" y="31" text-anchor="middle">Replica</text>
+      <line class="wire dash" x1="80" y1="43" x2="80" y2="295"></line>
+      <line class="wire dash" x1="300" y1="43" x2="300" y2="195"></line>
+      <line class="wire dash" x1="520" y1="43" x2="520" y2="295"></line>
+
+      <text class="m" x="190" y="72" text-anchor="middle">SET x 1</text>
+      <line class="wire" x1="80" y1="80" x2="298" y2="80" marker-end="url(#arrow-seq)"></line>
+      <text class="m" x="190" y="112" text-anchor="middle">OK</text>
+      <line class="wire" x1="300" y1="120" x2="82" y2="120" marker-end="url(#arrow-seq)"></line>
+
+      <text class="s" x="370" y="144" text-anchor="middle">copy, not sent yet</text>
+      <line class="wire dash" x1="300" y1="152" x2="432" y2="152"></line>
+      <path class="hot" d="M434 146 L446 158 M446 146 L434 158"></path>
+
+      <path class="hot" d="M292 187 L308 203 M308 187 L292 203"></path>
+      <text class="a" x="314" y="199">primary crashes</text>
+      <text class="b" x="512" y="232" text-anchor="end">promoted to primary</text>
+
+      <text class="m" x="300" y="246" text-anchor="middle">GET x</text>
+      <line class="wire" x1="80" y1="254" x2="518" y2="254" marker-end="url(#arrow-seq)"></line>
+      <text class="m a" x="300" y="276" text-anchor="middle">(nil)</text>
+      <line class="wire" x1="520" y1="284" x2="82" y2="284" marker-end="url(#arrow-seq)"></line>
+    </svg>
+  </div>
+  <figcaption>The client was told "OK", but the write only existed on the primary. After failover, the new primary never had it.</figcaption>
+</figure>
+
+<p>This is also why a lock can disappear during failover, as the <a href="#lock">lock section</a> explains. You can shrink this gap, but not remove it:</p>
+<ul>
+  <li><code>WAIT 1 100</code> after a write blocks until at least 1 replica confirms it, or 100 ms pass, and returns how many confirmed. Loss becomes less likely, but Redis does not become strongly consistent.</li>
+  <li><code>min-replicas-to-write 1</code> with <code>min-replicas-max-lag 10</code> makes the primary refuse writes when no replica has checked in for 10 seconds. A primary cut off from the network then stops accepting writes that would be thrown away later.</li>
+</ul>
+<p class="watch"><b>Watch out:</b> reads from a replica can be slightly old. A user who saves their profile and reloads the page might see the old version. Read from the primary right after a write, and send reads that can be a little stale, like product pages, to replicas.</p>
+</section>
+
+<section>
+<h2 id="scaling">Failover and Cluster</h2>
+<p>Replicas alone do not replace a failed primary. Something has to notice the failure and promote a replica.</p>
+<h3>Sentinel</h3>
+<p>Sentinel is a separate process that watches your primary. Run at least three of them on different machines. When enough of them agree the primary is down (the <strong>quorum</strong>), they promote the most up-to-date replica and point the other replicas at it. Your app asks Sentinel for the current primary address instead of hardcoding it. Failover takes a few seconds, and writes fail during that time, so clients need retries.</p>
+<h3>Cluster</h3>
+<p>Cluster splits your data across several primaries, each with its own replicas. Every key belongs to one of 16,384 hash slots, found with <code>CRC16(key) % 16384</code>, and each primary owns a range of slots. Nodes watch each other and fail over on their own, so Cluster does not need Sentinel. Start with at least three primaries, each with one replica.</p>
+<p>Clients keep a map of which node owns which slot. A client that asks the wrong node gets a redirect and updates its map:</p>
+<pre><code>&gt; GET foo
+(error) MOVED 12182 10.0.0.5:6379   <span class="c">slot 12182 lives on 10.0.0.5</span></code></pre>
+<p>You can move slots between nodes while the cluster runs, to add capacity. During a move, clients may see temporary <code>ASK</code> redirects. Multi-key commands only work when all keys share a slot. Force this with hash tags: only the part inside <code>{}</code> is hashed, so <code>{user:42}:cart</code> and <code>{user:42}:orders</code> land together. In Rust, enable the <code>redis</code> crate's <code>cluster-async</code> feature for a cluster-aware client.</p>
+<div class="scroll">
+<table>
+  <thead><tr><th>Setup</th><th>Gives you</th><th>Pick it when</th></tr></thead>
+  <tbody>
+    <tr><td>Primary + replicas</td><td>Read capacity and backups, with manual failover</td><td>Learning, or some downtime is acceptable</td></tr>
+    <tr><td>Sentinel</td><td>Automatic failover</td><td>Data and writes fit on one server</td></tr>
+    <tr><td>Cluster</td><td>Automatic failover, plus more memory and write capacity</td><td>Data or writes outgrow one server</td></tr>
+  </tbody>
+</table>
+</div>
+</section>
+
+<section>
+<h2 id="load">Handling heavy load</h2>
+<p>Before changing anything, find out which limit you are hitting. Adding replicas does nothing for a write problem, and Cluster does nothing for one hot key.</p>
+<div class="scroll">
+<table>
+  <thead><tr><th>Symptom</th><th>Likely cause</th><th>First fix</th></tr></thead>
+  <tbody>
+    <tr><td>Main thread CPU near 100%, latency rising</td><td>Too many commands, or slow ones</td><td>Pipeline, replace slow commands, then shard with Cluster</td></tr>
+    <tr><td>Memory near <code>maxmemory</code>, evictions or OOM errors</td><td>More data than one server holds</td><td>TTLs, compact types like Hashes, Cluster</td></tr>
+    <tr><td>One node much busier than the rest</td><td>A hot key or a big key</td><td>See the list below</td></tr>
+    <tr><td>Timeouts while Redis CPU is low</td><td>Network trips or too many connections</td><td>Pipelining, connection reuse, sensible client timeouts</td></tr>
+    <tr><td>Replicas keep doing full syncs</td><td>Backlog too small for the write rate</td><td>Larger <code>repl-backlog-size</code></td></tr>
+  </tbody>
+</table>
+</div>
+<h3>Ways to take more load</h3>
+<ul>
+  <li><strong>Send fewer round trips.</strong> Pipeline batches, and use multi-value commands like <code>MGET</code> or <code>HSET</code> with many fields. Network trips usually cost more than the commands.</li>
+  <li><strong>Reuse connections.</strong> Use a pool or one multiplexed connection. Thousands of short-lived connections waste memory and CPU.</li>
+  <li><strong>Scale reads with replicas</strong> when slightly stale data is fine. <strong>Scale writes and memory with Cluster.</strong></li>
+  <li><strong>Spread hot keys.</strong> One very popular key lives on one node, even in a Cluster. Cache it inside your app for a second or two (with <code>CLIENT TRACKING</code>, Redis tells your app when it changes), or store several copies under different keys and read a random one.</li>
+  <li><strong>Split big keys</strong> into smaller ones, and read large collections in pieces with <code>HSCAN</code>, <code>SSCAN</code> or <code>ZSCAN</code>.</li>
+  <li><strong>Turn on I/O threads</strong> (<code>io-threads 4</code>) when reading and writing network data, not running commands, is what keeps the CPU busy.</li>
+  <li><strong>Protect Redis from your app.</strong> Set client timeouts, and retry with exponential backoff and random jitter. Without that, a slow Redis receives a flood of retries and gets slower.</li>
+</ul>
+<h3>Measure it</h3>
+<pre><code>&gt; INFO stats                <span class="c">ops/sec, hits, misses, evictions</span>
+&gt; INFO replication          <span class="c">replica offsets and lag</span>
+&gt; SLOWLOG GET 10            <span class="c">slowest recent commands</span>
+redis-cli --latency         <span class="c">round-trip latency from your machine</span>
+redis-cli --bigkeys         <span class="c">largest key of each type</span>
+redis-cli --hotkeys         <span class="c">needs an LFU eviction policy</span>
+redis-benchmark -t set,get -n 100000   <span class="c">test capacity</span></code></pre>
+</section>
+
+<section>
+<h2 id="cache">Redis as a cache</h2>
+<p class="uses">Built on: String or Hash, plus TTL</p>
+<p>The most common pattern is <strong>cache-aside</strong>. The app checks Redis first. On a miss, it reads the database and stores the result with a TTL. On an update, it writes to the database and deletes the cached copy.</p>
+<pre><code><span class="c"># read path</span>
+&gt; GET product:7
+<span class="c">(nil)                     miss, so load it from the database</span>
+&gt; SET product:7 "{...}" EX 300
+
+<span class="c"># write path, after updating the database</span>
+&gt; DEL product:7</code></pre>
+<p>Deleting is safer than updating the cached value, because two concurrent updates can write to the cache in the wrong order.</p>
+<h3>Commands</h3>
+<div class="scroll">
+<table class="cmds">
+  <thead><tr><th>Command</th><th>What it's for</th></tr></thead>
+  <tbody>
+    <tr><td><code>GET key</code></td><td>Read the cached value. <code>(nil)</code> means a miss</td></tr>
+    <tr><td><code>SET key value EX seconds</code></td><td>Store a value with a TTL, ideally with random jitter. <code>SETEX</code> is the older form</td></tr>
+    <tr><td><code>SET key "NOT_FOUND" EX seconds</code></td><td>Negative caching: remember that a row doesn't exist, with a short TTL</td></tr>
+    <tr><td><code>MGET key1 key2 ...</code></td><td>Read several keys in one round trip</td></tr>
+    <tr><td><code>DEL key ...</code></td><td>Invalidate the cached copy after writing to the database</td></tr>
+    <tr><td><code>UNLINK key ...</code></td><td>Like <code>DEL</code>, but frees memory in the background. Use it for large values</td></tr>
+    <tr><td><code>SET lock:key token NX PX ms</code></td><td>Stampede lock: only one request rebuilds an expired key</td></tr>
+    <tr><td><code>EVAL</code> / <code>EVALSHA script</code></td><td>Release the stampede lock only if your token still owns it</td></tr>
+    <tr><td><code>INCR key</code></td><td>Count hits and misses yourself</td></tr>
+    <tr><td><code>GETEX key EX seconds</code></td><td>Read and extend the TTL in one step, so popular keys stay cached</td></tr>
+    <tr><td><code>TTL key</code></td><td>See how long a cached value has left</td></tr>
+    <tr><td><code>INFO stats</code></td><td>Server-wide <code>keyspace_hits</code>, <code>keyspace_misses</code> and <code>evicted_keys</code></td></tr>
+    <tr><td><code>CONFIG SET maxmemory-policy allkeys-lru</code></td><td>Make Redis evict old keys instead of refusing writes when memory is full</td></tr>
+  </tbody>
+</table>
+</div>
+<p class="watch"><b>Watch out:</b> when a popular key expires, thousands of requests can hit the database at once. This is a <strong>cache stampede</strong>. Let one request rebuild the value behind a short lock, and add random jitter to TTLs so that keys do not all expire together. Always set a TTL, so any stale data fixes itself eventually.</p>
+</section>
+
+<section>
+<h2 id="lock">Redis as a distributed lock</h2>
+<p class="uses">Built on: String with SET NX, plus Lua</p>
+<p>A lock stops two servers from doing the same work at the same time. <code>SET</code> with <code>NX</code> only succeeds if the key does not exist, so exactly one client wins. The TTL frees the lock if the holder crashes. The value is a random token that proves who owns it.</p>
+<pre><code>&gt; SET lock:order:42 8f3a91c2 NX PX 30000
+OK                        <span class="c">you hold it for 30 seconds</span>
+&gt; SET lock:order:42 b71e04d9 NX PX 30000
+(nil)                     <span class="c">someone else is refused</span></code></pre>
+<p>To release it, check the token and delete in one atomic step. A plain <code>DEL</code> could remove a lock that has already expired and now belongs to someone else.</p>
+<pre><code><span class="c">-- KEYS[1] = lock key, ARGV[1] = your token</span>
+if redis.call("GET", KEYS[1]) == ARGV[1] then
+  return redis.call("DEL", KEYS[1])
+end
+return 0</code></pre>
+<h3>Commands</h3>
+<div class="scroll">
+<table class="cmds">
+  <thead><tr><th>Command</th><th>What it's for</th></tr></thead>
+  <tbody>
+    <tr><td><code>SET key token NX PX ms</code></td><td>Take the lock. Replies <code>OK</code> if you won, <code>(nil)</code> if someone holds it</td></tr>
+    <tr><td><code>SET key token NX PX ms GET</code></td><td>Take the lock and get the current holder in one trip, so you can say who has it. Redis 7+</td></tr>
+    <tr><td><code>GET key</code></td><td>See who holds the lock</td></tr>
+    <tr><td><code>MGET key1 key2 ...</code></td><td>Check many locks at once, like every seat on a map</td></tr>
+    <tr><td><code>PTTL key</code></td><td>Milliseconds left on the lock</td></tr>
+    <tr><td><code>EVAL</code> / <code>EVALSHA script</code></td><td>Release safely: <code>GET</code>, compare the token, then <code>DEL</code>, as one atomic step</td></tr>
+    <tr><td><code>PEXPIRE key ms</code>, inside a script</td><td>Extend the lock while the work is still running, but only if the token matches</td></tr>
+    <tr><td><code>DEL key ...</code></td><td>Clear locks in tests or demos. Never release a real lock this way</td></tr>
+    <tr><td><code>WAIT numreplicas timeout</code></td><td>Wait for replicas to copy the lock, so a failover is less likely to lose it</td></tr>
+  </tbody>
+</table>
+</div>
+<p class="watch"><b>Watch out:</b> this lock is not perfectly safe. A paused process can outlive its TTL, and a failover can lose the lock because replication is asynchronous. Redlock uses several independent Redis nodes to reduce this risk, but its safety is debated. Use Redis locks to <strong>avoid duplicate work</strong>. If two holders would corrupt data, also protect the data itself, for example with a database constraint or a fencing token.</p>
+</section>
+
+<section>
+<h2 id="leaderboard">Redis for leaderboards</h2>
+<p class="uses">Built on: Sorted Set</p>
+<p>A Sorted Set keeps members ordered by score at all times. Updates and rank lookups cost O(log N), so they stay fast with millions of players. A SQL <code>ORDER BY</code> on a busy score table struggles with the same job.</p>
+<pre><code>&gt; ZADD game:scores 1200 ada 950 linus 1500 grace
+&gt; ZINCRBY game:scores 100 linus      <span class="c">add points</span>
+&gt; ZRANGE game:scores 0 9 REV WITHSCORES  <span class="c">top 10</span>
+&gt; ZREVRANK game:scores ada           <span class="c">ada's rank, 0 is first</span>
+&gt; ZSCORE game:scores ada</code></pre>
+<h3>Commands</h3>
+<div class="scroll">
+<table class="cmds">
+  <thead><tr><th>Command</th><th>What it's for</th></tr></thead>
+  <tbody>
+    <tr><td><code>ZADD key GT CH score member</code></td><td>Keep each player's best score. Replies 1 for a first score or a new best, 0 otherwise</td></tr>
+    <tr><td><code>ZADD key LT CH score member</code></td><td>Keep the lowest score instead, for games where lower is better, like race times</td></tr>
+    <tr><td><code>ZINCRBY key delta member</code></td><td>Add points to a running total</td></tr>
+    <tr><td><code>ZSCORE key member</code></td><td>One player's score</td></tr>
+    <tr><td><code>ZMSCORE key m1 m2 ...</code></td><td>Several players' scores at once, like a friends list</td></tr>
+    <tr><td><code>ZRANGE key 0 9 REV WITHSCORES</code></td><td>Top 10. The same call over a window around a rank gives "players near me"</td></tr>
+    <tr><td><code>ZREVRANK key member [WITHSCORE]</code></td><td>A player's rank, 0 is first. <code>WITHSCORE</code> (Redis 7.2+) adds the score in the same trip</td></tr>
+    <tr><td><code>ZCARD key</code></td><td>How many players are on the board, for "#19 of 21"</td></tr>
+    <tr><td><code>ZCOUNT key min max</code></td><td>How many players scored in a range, e.g. for percentiles</td></tr>
+    <tr><td><code>ZRANGE key max min BYSCORE REV LIMIT 0 n</code></td><td>Players inside a score band, best first</td></tr>
+    <tr><td><code>ZREM key member</code></td><td>Remove a player, like a banned cheater</td></tr>
+    <tr><td><code>ZUNIONSTORE dest n key ... AGGREGATE MAX|SUM</code></td><td>Build a weekly board from daily ones: best single run, or all daily bests added up</td></tr>
+    <tr><td><code>ZINTERSTORE dest 2 board friends WEIGHTS 1 0</code></td><td>A friends-only board: keep players who are in both, with scores from the board</td></tr>
+    <tr><td><code>EXPIRE key seconds NX</code></td><td>Make a period's board delete itself. <code>NX</code> means later scores don't push the expiry back</td></tr>
+    <tr><td><code>MULTI</code> … <code>EXEC</code></td><td>Run <code>ZADD</code> and <code>EXPIRE</code> together, so a board is never left without a TTL</td></tr>
+    <tr><td><code>TTL key</code></td><td>Check when a board will expire</td></tr>
+    <tr><td><code>DEL key</code></td><td>Reset a board</td></tr>
+  </tbody>
+</table>
+</div>
+<p class="watch"><b>Watch out:</b> equal scores are ordered alphabetically by member, which is rarely fair. To reward whoever got there first, encode a timestamp in the score. Scores are 64-bit floats, so integers are only exact up to 2<sup>53</sup>. For daily or weekly boards, use one key per period, like <code>scores:2026-w45</code>, and give it a TTL.</p>
+</section>
+
+<section>
+<h2 id="rate">Redis for rate limiting</h2>
+<p class="uses">Built on: String counter, or Sorted Set, or Hash with Lua</p>
+<p>Every API server shares the same counter in Redis, so a limit holds across all of them. The simplest version is a <strong>fixed window</strong>: one counter per user per minute.</p>
+<pre><code>&gt; MULTI
+&gt; INCR rate:user42:1430
+&gt; EXPIRE rate:user42:1430 60 NX   <span class="c">only sets a TTL if none exists</span>
+&gt; EXEC
+<span class="c">1) (integer) 7                   7th request this minute</span>
+<span class="c">2) (integer) 0                   TTL was already set</span></code></pre>
+<p>If the count is above your limit, reject the request. Running both commands in <code>MULTI</code> matters: if a crash landed between them, the key would never expire and the user could stay blocked. <code>EXPIRE ... NX</code> needs Redis 7 or newer.</p>
+<div class="scroll">
+<table>
+  <thead><tr><th>Algorithm</th><th>How</th><th>Trade-off</th></tr></thead>
+  <tbody>
+    <tr><td>Fixed window</td><td><code>INCR</code> per time window</td><td>Tiny and fast, but allows up to double the limit around a window edge</td></tr>
+    <tr><td>Sliding log</td><td>Sorted Set of request timestamps. Trim old ones, then count</td><td>Accurate, but stores one entry per request</td></tr>
+    <tr><td>Token bucket</td><td>Hash of tokens and last refill time, updated by Lua</td><td>Allows short bursts with a steady average rate</td></tr>
+  </tbody>
+</table>
+</div>
+<h3>Commands</h3>
+<div class="scroll">
+<table class="cmds">
+  <thead><tr><th>Command</th><th>What it's for</th></tr></thead>
+  <tbody>
+    <tr><td><code>INCR key</code></td><td>Fixed window: count this request and get the new total</td></tr>
+    <tr><td><code>EXPIRE key seconds NX</code></td><td>Start the window's TTL only on the first request. <code>PEXPIRE</code> for milliseconds</td></tr>
+    <tr><td><code>MULTI</code> … <code>EXEC</code></td><td>Run <code>INCR</code> and <code>EXPIRE</code> together, so a counter can never get stuck without a TTL</td></tr>
+    <tr><td><code>TTL key</code></td><td>Seconds until the window resets, for a <code>Retry-After</code> header</td></tr>
+    <tr><td><code>ZADD key now request-id</code></td><td>Sliding log: record a request with its timestamp as the score</td></tr>
+    <tr><td><code>ZREMRANGEBYSCORE key -inf window-start</code></td><td>Sliding log: drop requests older than the window</td></tr>
+    <tr><td><code>ZCARD key</code></td><td>Sliding log: count the requests left in the window</td></tr>
+    <tr><td><code>HSET key tokens n updated_at ts</code></td><td>Token bucket: save the tokens left and the last refill time</td></tr>
+    <tr><td><code>HMGET key tokens updated_at</code></td><td>Token bucket: read both fields</td></tr>
+    <tr><td><code>EVAL</code> / <code>EVALSHA script</code></td><td>Read, refill, take a token and write back as one atomic step. Needed for the sliding log and token bucket</td></tr>
+  </tbody>
+</table>
+</div>
+<p class="watch"><b>Watch out:</b> decide what happens when Redis is down. Most public APIs let requests through ("fail open"). Login and payment endpoints may be safer rejecting them ("fail closed").</p>
+</section>
+
+<section>
+<h2 id="geo">Redis for proximity search</h2>
+<p class="uses">Built on: Geo, which is a Sorted Set</p>
+<p>Redis turns each longitude and latitude into a single number called a geohash and uses it as the Sorted Set score. Nearby places get similar numbers, so finding them is a matter of scanning a few score ranges.</p>
+<pre><code>&gt; GEOADD stores 13.361389 38.115556 palermo 15.087269 37.502669 catania
+&gt; GEOSEARCH stores FROMLONLAT 15 37 BYRADIUS 200 km ASC WITHDIST
+<span class="c">1) 1) "catania"
+   2) "56.4413"
+2) 1) "palermo"
+   2) "190.4424"</span></code></pre>
+<h3>Commands</h3>
+<div class="scroll">
+<table class="cmds">
+  <thead><tr><th>Command</th><th>What it's for</th></tr></thead>
+  <tbody>
+    <tr><td><code>GEOADD key lon lat member ...</code></td><td>Add a place, or move one that is already there</td></tr>
+    <tr><td><code>GEOSEARCH key FROMLONLAT lon lat BYRADIUS r km ASC COUNT n WITHDIST</code></td><td>The n closest places to a point, nearest first, with distances</td></tr>
+    <tr><td><code>GEOSEARCH key FROMMEMBER m BYBOX w h km</code></td><td>Search around an existing member, or inside a rectangle such as the map on screen</td></tr>
+    <tr><td><code>GEOSEARCHSTORE dest key ...</code></td><td>Save the search result as a new key, to page through it or reuse it</td></tr>
+    <tr><td><code>GEODIST key m1 m2 km</code></td><td>Distance between two members</td></tr>
+    <tr><td><code>GEOPOS key member ...</code></td><td>The stored coordinates of members</td></tr>
+    <tr><td><code>GEOHASH key member ...</code></td><td>The standard geohash string, to share with other tools</td></tr>
+    <tr><td><code>ZREM key member</code></td><td>Remove a place. There is no <code>GEODEL</code></td></tr>
+    <tr><td><code>ZCARD key</code></td><td>How many places a key holds</td></tr>
+    <tr><td><code>ZADD seen now member</code></td><td>In a second Sorted Set, record when each moving object last reported in</td></tr>
+    <tr><td><code>ZRANGE seen -inf cutoff BYSCORE</code></td><td>Find objects that stopped reporting, then <code>ZREM</code> them from both keys</td></tr>
+  </tbody>
+</table>
+</div>
+<p class="watch"><b>Watch out:</b> longitude comes before latitude, the reverse of most map tools. Members cannot have their own TTL, so moving objects like drivers need regular updates, and old entries must be removed with <code>ZREM</code>. For large datasets, use one key per city or region so that no single key grows too big. Use <code>GEOSEARCH</code> in new code, not the older <code>GEORADIUS</code>.</p>
+</section>
+
+<section>
+<h2 id="events">Redis for event sourcing</h2>
+<p class="uses">Built on: Stream</p>
+<p>Event sourcing stores <strong>what happened</strong> instead of only the current state. An order's status comes from replaying its events: created, paid, shipped. A Stream fits because it is an append-only log. Every entry gets an ordered ID made of a millisecond timestamp and a sequence number.</p>
+<pre><code>&gt; XADD order:42 * type created total 99
+"1793577600000-0"
+&gt; XADD order:42 * type paid
+"1793577600412-0"
+&gt; XRANGE order:42 - +            <span class="c">replay all events, oldest first</span></code></pre>
+<p><strong>Consumer groups</strong> share the work among workers. Each entry goes to one worker in the group, and it stays pending until that worker confirms it. If a worker crashes, another can claim its entries with <code>XAUTOCLAIM</code>.</p>
+<pre><code>&gt; XGROUP CREATE order:42 billing 0
+&gt; XREADGROUP GROUP billing worker-1 COUNT 10 BLOCK 5000 STREAMS order:42 &gt;
+&gt; XACK order:42 billing 1793577600000-0</code></pre>
+<h3>Commands</h3>
+<div class="scroll">
+<table class="cmds">
+  <thead><tr><th>Command</th><th>What it's for</th></tr></thead>
+  <tbody>
+    <tr><td><code>XADD key * field value ...</code></td><td>Append an event. <code>*</code> lets Redis pick the ID</td></tr>
+    <tr><td><code>XADD key MAXLEN ~ n * ...</code></td><td>Append and trim old entries in the same step</td></tr>
+    <tr><td><code>XRANGE key - + [COUNT n]</code></td><td>Replay events oldest first. Start from the last ID you saw to read in pages</td></tr>
+    <tr><td><code>XREVRANGE key + - COUNT 1</code></td><td>The latest event</td></tr>
+    <tr><td><code>XLEN key</code></td><td>How many events the stream holds</td></tr>
+    <tr><td><code>XREAD BLOCK ms STREAMS key $</code></td><td>Wait for new events without a consumer group. Every reader gets every event</td></tr>
+    <tr><td><code>XGROUP CREATE key group 0 MKSTREAM</code></td><td>Create a consumer group, and the stream if it doesn't exist yet</td></tr>
+    <tr><td><code>XREADGROUP GROUP g worker COUNT n BLOCK ms STREAMS key &gt;</code></td><td>Get new events for this worker. Each goes to one worker in the group</td></tr>
+    <tr><td><code>XACK key group id ...</code></td><td>Confirm an event is handled, removing it from the pending list</td></tr>
+    <tr><td><code>XPENDING key group</code></td><td>Events delivered but not yet confirmed, and which worker has them</td></tr>
+    <tr><td><code>XAUTOCLAIM key group worker min-idle-ms 0</code></td><td>Take over events stuck with a crashed worker. <code>XCLAIM</code> does it for specific IDs</td></tr>
+    <tr><td><code>XTRIM key MINID id</code></td><td>Delete events older than an ID, once a snapshot covers them</td></tr>
+    <tr><td><code>XINFO STREAM key</code> / <code>XINFO GROUPS key</code></td><td>Inspect the stream, its groups and how far behind they are</td></tr>
+    <tr><td><code>HSET order:42:state field value ...</code></td><td>Save the current state built from the events, so reads don't replay the whole log</td></tr>
+  </tbody>
+</table>
+</div>
+<p class="watch"><b>Watch out:</b> in event sourcing, the log is your source of truth, and Redis keeps it all in memory. Long histories get expensive, and with default settings a crash can lose recent events. Enable AOF if you depend on the log. Trimming with <code>MAXLEN</code> saves memory but deletes history you may need to replay. Streams are a great fit for learning and for short-lived event pipelines. For permanent records, teams often keep the full log in a database or Kafka. Delivery is at-least-once, so make your workers safe to run twice.</p>
+</section>
+
+<section>
+<h2 id="pubsub">Redis for Pub/Sub</h2>
+<p class="uses">Built on: channels, which store nothing</p>
+<p>Publishers send a message to a named channel, and Redis instantly pushes it to everyone subscribed at that moment. Senders and receivers do not need to know each other. It suits live updates such as chat, notifications, and telling other servers to clear a local cache.</p>
+<pre><code><span class="c"># terminal 1</span>
+&gt; SUBSCRIBE chat:room1
+<span class="c"># terminal 2</span>
+&gt; PUBLISH chat:room1 "hello"
+(integer) 1               <span class="c">number of subscribers who received it</span>
+<span class="c"># pattern subscribe</span>
+&gt; PSUBSCRIBE chat:*</code></pre>
+<p>Messages are <strong>fire and forget</strong>. If a subscriber is offline, or is too slow and gets disconnected, its messages are gone. Choose by how much a lost message matters.</p>
+<div class="scroll">
+<table>
+  <thead><tr><th></th><th>Pub/Sub</th><th>Stream</th><th>List</th></tr></thead>
+  <tbody>
+    <tr><td>Stored</td><td>No</td><td>Yes</td><td>Until popped</td></tr>
+    <tr><td>Receivers</td><td>All subscribers</td><td>Each group, or one worker within it</td><td>One worker</td></tr>
+    <tr><td>Replay history</td><td>No</td><td>Yes</td><td>No</td></tr>
+    <tr><td>Best for</td><td>Live signals</td><td>Events you must not lose</td><td>Simple job queues</td></tr>
+  </tbody>
+</table>
+</div>
+<h3>Commands</h3>
+<div class="scroll">
+<table class="cmds">
+  <thead><tr><th>Command</th><th>What it's for</th></tr></thead>
+  <tbody>
+    <tr><td><code>SUBSCRIBE channel ...</code></td><td>Listen on channels. The connection now only takes subscribe commands</td></tr>
+    <tr><td><code>UNSUBSCRIBE [channel ...]</code></td><td>Stop listening. With no channel, leaves all of them</td></tr>
+    <tr><td><code>PSUBSCRIBE pattern ...</code></td><td>Listen on every channel matching a pattern, like <code>chat:*</code></td></tr>
+    <tr><td><code>PUNSUBSCRIBE [pattern ...]</code></td><td>Stop listening on patterns</td></tr>
+    <tr><td><code>PUBLISH channel message</code></td><td>Send a message. Replies with how many subscribers got it</td></tr>
+    <tr><td><code>PING</code></td><td>Keep a quiet subscriber connection alive and check it still works</td></tr>
+    <tr><td><code>PUBSUB CHANNELS [pattern]</code></td><td>Channels that currently have subscribers</td></tr>
+    <tr><td><code>PUBSUB NUMSUB channel ...</code></td><td>How many subscribers each channel has</td></tr>
+    <tr><td><code>SSUBSCRIBE</code> / <code>SPUBLISH</code> / <code>SUNSUBSCRIBE</code></td><td>Sharded Pub/Sub for Cluster: messages stay on the node that owns the channel. Redis 7+</td></tr>
+  </tbody>
+</table>
+</div>
+<p class="watch"><b>Watch out:</b> a connection in subscribe mode is normally dedicated to that job, so open a separate one for other commands. In a Cluster, regular Pub/Sub messages travel to every node. Sharded Pub/Sub (<code>SPUBLISH</code>, <code>SSUBSCRIBE</code>, Redis 7+) scales better.</p>
+</section>
+
+<section>
+<h2 id="gotchas">Know before production</h2>
+<ul>
+  <li><strong>Never run <code>KEYS *</code> in production.</strong> It walks every key and blocks everyone. Use <code>SCAN</code>, which works in small steps.</li>
+  <li><strong>Avoid big keys.</strong> A Hash with millions of fields makes commands slow and deletes painful. Split it up, and delete large keys with <code>UNLINK</code>, which frees memory in the background.</li>
+  <li><strong>Watch slow commands.</strong> <code>SLOWLOG GET</code> shows them. Avoid fetching whole collections with commands like <code>SMEMBERS</code> or <code>HGETALL</code> on large keys.</li>
+  <li><strong>Reuse connections.</strong> Use a pool or a shared connection, and pipeline batches. Most of a request's time is the network trip.</li>
+  <li><strong>Leave spare memory.</strong> Snapshots and log rewrites fork the process, and memory use can grow while writes continue during the fork.</li>
+  <li><strong>Secure it.</strong> Keep Redis on a private network and use passwords or ACLs, plus TLS where traffic crosses networks. Never expose port 6379 to the internet.</li>
+  <li><strong>Be careful treating it as your main database.</strong> Check your persistence settings and how much data loss you can accept. All data also has to fit in memory, which is expensive.</li>
+  <li><strong>Know the licensing.</strong> Redis left its BSD license in 2024, which led to Valkey, a Linux Foundation fork that remains BSD. Redis 8 added AGPLv3 as an option. Core commands in this guide work on both.</li>
+</ul>
+</section>
+
+<section>
+<h2 id="rust">Start with Rust</h2>
+<p>Run a local server with Docker, then add the <code>redis</code> crate.</p>
+<pre><code>docker run --rm -p 6379:6379 redis:8
+cargo add redis</code></pre>
+<pre><code>use redis::Commands;
+
+fn main() -&gt; redis::RedisResult&lt;()&gt; {
+    let client = redis::Client::open("redis://127.0.0.1:6379/")?;
+    let mut con = client.get_connection()?;
+
+    let _: () = con.set_ex("greeting", "hello", 60)?;
+    let value: Option&lt;String&gt; = con.get("greeting")?;
+    println!("{value:?}");
+
+    Ok(())
+}</code></pre>
+<p>A good way to practice is to build the usages in this order: cache, rate limiter, leaderboard, lock, Pub/Sub, geo, then streams. Each one adds a new data type or idea. For real services, enable the crate's Tokio support and use <code>get_multiplexed_async_connection</code>.</p>
+<p>For command details, see the <a href="https://redis.io/docs/latest/commands/">Redis command reference</a>.</p>
+</section>
+</main>
+</div>
+</body>
+</html>
