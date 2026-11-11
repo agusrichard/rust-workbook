@@ -1,0 +1,108 @@
+# ParkWatch Mall: a 3-node Cassandra cluster plus the parkd API and the sim.
+#
+#   docker compose up -d --build        # nodes start one at a time (~2-3 min)
+#   docker compose exec cassandra1 nodetool status
+#   curl -s localhost:8080/health
+#   docker compose logs sim
+#
+# Only parkd is published to the Mac. The Cassandra nodes are reachable only
+# inside this network: the driver learns the other nodes' Docker-internal IPs
+# from system.peers, and those IPs don't route from macOS. Use
+# `docker compose exec cassandra1 cqlsh` for a CQL shell.
+
+x-cassandra: &cassandra
+  image: cassandra:5.0
+  environment:
+    # Nodes only join each other if the cluster name matches.
+    CASSANDRA_CLUSTER_NAME: parkwatch
+    # A seed is just the address a new node contacts to find the cluster.
+    # After joining, every node gossips with the others once per second.
+    CASSANDRA_SEEDS: cassandra1
+    # GossipingPropertyFileSnitch reads each node's DC and rack (written to
+    # cassandra-rackdc.properties by the image) and gossips them, so
+    # NetworkTopologyStrategy can place replicas per data center.
+    CASSANDRA_ENDPOINT_SNITCH: GossipingPropertyFileSnitch
+    CASSANDRA_DC: dc1
+    CASSANDRA_RACK: rack1
+    # Keep each JVM small so 3 nodes fit in Docker Desktop's memory.
+    # Both must be set together or cassandra-env.sh refuses to start.
+    MAX_HEAP_SIZE: 512M
+    HEAP_NEWSIZE: 128M
+  healthcheck:
+    # A node opens the CQL port (9042) only after it has finished joining the
+    # ring, so "cqlsh can run a query" means "this node is fully up".
+    test: ["CMD", "cqlsh", "-e", "SELECT release_version FROM system.local"]
+    interval: 10s
+    timeout: 10s
+    retries: 30
+    start_period: 60s
+
+x-app: &app
+  build: .
+  image: parkwatch-app:dev
+  environment:
+    RUST_LOG: info
+
+services:
+  cassandra1:
+    <<: *cassandra
+    hostname: cassandra1
+    volumes:
+      - cassandra1-data:/var/lib/cassandra
+
+  # Each node waits for the previous one to be healthy. A joining node claims
+  # token ranges and streams data for them. Two nodes bootstrapping at the same
+  # moment can claim overlapping ranges, so they join one at a time.
+  cassandra2:
+    <<: *cassandra
+    hostname: cassandra2
+    volumes:
+      - cassandra2-data:/var/lib/cassandra
+    depends_on:
+      cassandra1: { condition: service_healthy }
+
+  cassandra3:
+    <<: *cassandra
+    hostname: cassandra3
+    volumes:
+      - cassandra3-data:/var/lib/cassandra
+    depends_on:
+      cassandra2: { condition: service_healthy }
+
+  parkd:
+    <<: *app
+    command: ["parkd"]
+    environment:
+      RUST_LOG: info
+      # Contact points only. The driver discovers the rest of the ring itself.
+      # Listing more than one means parkd can still start if cassandra1 is down.
+      CASSANDRA_NODES: cassandra1:9042,cassandra2:9042,cassandra3:9042
+      PARKD_ADDR: 0.0.0.0:8080
+    ports:
+      - "127.0.0.1:8080:8080"
+    depends_on:
+      cassandra1: { condition: service_healthy }
+      cassandra2: { condition: service_healthy }
+      cassandra3: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 5s
+
+  sim:
+    <<: *app
+    command: ["sim"]
+    environment:
+      RUST_LOG: info
+      PARKD_URL: http://parkd:8080
+    # In Phase 0 sim checks that it can reach parkd, then exits.
+    restart: "no"
+    depends_on:
+      parkd: { condition: service_healthy }
+
+volumes:
+  cassandra1-data:
+  cassandra2-data:
+  cassandra3-data:
