@@ -69,6 +69,21 @@ services:
     depends_on:
       cassandra2: { condition: service_healthy }
 
+  # Schema creation is a short-lived, idempotent job. Keeping it separate
+  # makes the normal parkd process a pure HTTP service and lets `docker compose
+  # up` work from an empty set of Cassandra volumes.
+  schema:
+    <<: *app
+    command: ["parkd", "--init-schema"]
+    environment:
+      RUST_LOG: info
+      CASSANDRA_NODES: cassandra1:9042,cassandra2:9042,cassandra3:9042
+    restart: "no"
+    depends_on:
+      cassandra1: { condition: service_healthy }
+      cassandra2: { condition: service_healthy }
+      cassandra3: { condition: service_healthy }
+
   parkd:
     <<: *app
     command: ["parkd"]
@@ -81,9 +96,7 @@ services:
     ports:
       - "127.0.0.1:8080:8080"
     depends_on:
-      cassandra1: { condition: service_healthy }
-      cassandra2: { condition: service_healthy }
-      cassandra3: { condition: service_healthy }
+      schema: { condition: service_completed_successfully }
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://localhost:8080/health"]
       interval: 5s
@@ -97,7 +110,7 @@ services:
     environment:
       RUST_LOG: info
       PARKD_URL: http://parkd:8080
-    # In Phase 0 sim checks that it can reach parkd, then exits.
+    # sim seeds 3 x 40 spots, then sends duplicate and late spot events.
     restart: "no"
     depends_on:
       parkd: { condition: service_healthy }
