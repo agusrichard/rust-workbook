@@ -93,6 +93,9 @@ services:
       # Listing more than one means parkd can still start if cassandra1 is down.
       CASSANDRA_NODES: cassandra1:9042,cassandra2:9042,cassandra3:9042
       PARKD_ADDR: 0.0.0.0:8080
+      # 900 = 15 minutes. For a quick TTL test:
+      #   RESERVATION_TTL_SECONDS=20 docker compose up -d parkd
+      RESERVATION_TTL_SECONDS: ${RESERVATION_TTL_SECONDS:-900}
     ports:
       - "127.0.0.1:8080:8080"
     depends_on:
@@ -106,11 +109,15 @@ services:
 
   sim:
     <<: *app
-    command: ["sim"]
+    # An entrypoint (not a command) so `docker compose run --rm sim --race`
+    # passes `--race` to sim instead of trying to execute it.
+    entrypoint: ["sim"]
     environment:
       RUST_LOG: info
       PARKD_URL: http://parkd:8080
-    # sim seeds 3 x 40 spots, then sends duplicate and late spot events.
+    # sim seeds 3 x 40 spots, then runs the mall until stopped: cars come and
+    # go, units heartbeat every 15s, and a few faults are planted on purpose.
+    # One-off modes: `docker compose run --rm sim --timestamps` or `--race`.
     restart: "no"
     depends_on:
       parkd: { condition: service_healthy }

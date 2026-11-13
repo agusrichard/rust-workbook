@@ -161,55 +161,55 @@ Design notes:
 
 ### Phase 0: Set up the cluster and project
 
-- [ ] **Write `docker-compose.yml` with 3 nodes** (`cassandra:5.0`). Use the same `CASSANDRA_CLUSTER_NAME` on all 3, set `CASSANDRA_SEEDS=cassandra1`, and set `CASSANDRA_DC=dc1` with `CASSANDRA_ENDPOINT_SNITCH=GossipingPropertyFileSnitch`. Set `MAX_HEAP_SIZE=512M` and `HEAP_NEWSIZE=128M`.
+- [x] **Write `docker-compose.yml` with 3 nodes** (`cassandra:5.0`). Use the same `CASSANDRA_CLUSTER_NAME` on all 3, set `CASSANDRA_SEEDS=cassandra1`, and set `CASSANDRA_DC=dc1` with `CASSANDRA_ENDPOINT_SNITCH=GossipingPropertyFileSnitch`. Set `MAX_HEAP_SIZE=512M` and `HEAP_NEWSIZE=128M`.
   - *Concept, seeds and gossip:* a seed is just the address a new node contacts to find the cluster. After joining, nodes keep each other up to date by gossiping every second.
-- [ ] **Start the nodes one at a time,** using healthchecks with `depends_on: condition: service_healthy`.
+- [x] **Start the nodes one at a time,** using healthchecks with `depends_on: condition: service_healthy`.
   - *Concept, bootstrapping:* a joining node claims token ranges and copies data from the other nodes. Two nodes joining at the same moment can conflict.
-- [ ] **Check the cluster:** `nodetool status` should show 3 nodes marked `UN` (Up/Normal).
-- [ ] **Create a Cargo workspace** with `parkd` and `sim`. Add `scylla`, `tokio`, `axum`, `serde`, `chrono`, `reqwest` (for `sim`), `rand` and `anyhow`.
-- [ ] **Run `parkd` and `sim` as compose services.** The driver discovers the other nodes by their Docker-internal IPs, which your Mac can't reach, so the app has to run inside the network.
+- [x] **Check the cluster:** `nodetool status` should show 3 nodes marked `UN` (Up/Normal).
+- [x] **Create a Cargo workspace** with `parkd` and `sim`. Add `scylla`, `tokio`, `axum`, `serde`, `chrono`, `reqwest` (for `sim`), `rand` and `anyhow`.
+- [x] **Run `parkd` and `sim` as compose services.** The driver discovers the other nodes by their Docker-internal IPs, which your Mac can't reach, so the app has to run inside the network.
 
 ### Phase 1: Set up the schema
 
-- [ ] **Add `parkd --init-schema`** to create keyspace `parkwatch` with `NetworkTopologyStrategy {'dc1': 3}` and all the tables. Use `IF NOT EXISTS` so it's safe to run twice.
+- [x] **Add `parkd --init-schema`** to create keyspace `parkwatch` with `NetworkTopologyStrategy {'dc1': 3}` and all the tables. Use `IF NOT EXISTS` so it's safe to run twice.
   - *Concept, replication factor:* RF=3 means 3 copies, so you can lose 1 node and still use `QUORUM`.
-- [ ] **Give `spots_by_level` its static columns,** `level_name text STATIC, capacity int STATIC`.
+- [x] **Give `spots_by_level` its static columns,** `level_name text STATIC, capacity int STATIC`.
   - *Concept, static columns:* the value is stored once per partition and appears on every row in it.
-- [ ] **Add `sim --seed`** to create the spots, for example 3 levels × 40 spots.
+- [x] **Add `sim --seed`** to create the spots, for example 3 levels × 40 spots.
 
 ### Phase 2: Spot events and lights
 
-- [ ] **Add `POST /events`** and turn the JSON into a Rust enum of event types.
-- [ ] **Write spot state with `UPDATE spots_by_level USING TIMESTAMP ? SET occupied = ?, plate = ?, light_reported = ? ...`.** The timestamp is in microseconds.
+- [x] **Add `POST /events`** and turn the JSON into a Rust enum of event types.
+- [x] **Write spot state with `UPDATE spots_by_level USING TIMESTAMP ? SET occupied = ?, plate = ?, light_reported = ? ...`.** The timestamp is in microseconds.
   - *Concept, client-side timestamps:* every replica keeps the value with the highest timestamp. A duplicate rewrites the same value, and a late event loses to newer data. That makes ingestion idempotent without reading before writing.
-- [ ] **Implement the light rules in `sim`** (off, then red, then blue, then green). The unit reports its light color in every event.
-- [ ] **Have `sim` duplicate 10% of events and send 10% of them 5 seconds late.** Check that the final state in Cassandra matches what the sim logged. Then remove `USING TIMESTAMP` and watch the state go wrong.
-- [ ] **Add `GET /levels/free`:** read the 3 level partitions concurrently and count the free spots that have no override.
+- [x] **Implement the light rules in `sim`** (off, then red, then blue, then green). The unit reports its light color in every event.
+- [x] **Have `sim` duplicate 10% of events and send 10% of them 5 seconds late.** Check that the final state in Cassandra matches what the sim logged. Then remove `USING TIMESTAMP` and watch the state go wrong.
+- [x] **Add `GET /levels/free`:** read the 3 level partitions concurrently and count the free spots that have no override.
 
 ### Phase 3: Gates, sessions and fees
 
-- [ ] **Entry:** write `INSERT INTO active_session_by_plate ... IF NOT EXISTS` and read `[applied]`.
+- [x] **Entry:** write `INSERT INTO active_session_by_plate ... IF NOT EXISTS` and read `[applied]`.
   - *Concept, LWT:* Paxos runs among the replicas so the check and the write happen as one step. It costs about 4 round trips. A duplicate gate read becomes `[applied] = false`, and nothing breaks.
-- [ ] **Exit:** read the session, calculate the fee, write `sessions_by_day`, then `DELETE ... IF EXISTS`.
-- [ ] **Find my car:** occupied events write `car_location_by_plate`, and `GET /cars/{plate}` reads it.
-- [ ] **Add `GET /ops/report?day=`** returning visits, average stay and revenue from one partition of `sessions_by_day`.
+- [x] **Exit:** read the session, calculate the fee, write `sessions_by_day`, then `DELETE ... IF EXISTS`.
+- [x] **Find my car:** occupied events write `car_location_by_plate`, and `GET /cars/{plate}` reads it.
+- [x] **Add `GET /ops/report?day=`** returning visits, average stay and revenue from one partition of `sessions_by_day`.
   - *Concept:* the report reads a single partition, so it's fast. A report over a month means 30 partitions read concurrently, never a table scan.
 
 ### Phase 4: Reservations (blue light)
 
-- [ ] **Add `POST /spots/{id}/reserve`:** `INSERT INTO reservations ... IF NOT EXISTS USING TTL 900`, and if applied, set `light_override = 'blue'` with the same TTL.
+- [x] **Add `POST /spots/{id}/reserve`:** `INSERT INTO reservations ... IF NOT EXISTS USING TTL 900`, and if applied, set `light_override = 'blue'` with the same TTL.
   - *Concept, TTL as a timer:* both rows expire together, and the light goes back to green with no cleanup job.
-- [ ] **Add cancelling:** `DELETE FROM reservations WHERE spot_id = ? IF reserved_by = ?`, so only the holder can cancel. Then clear the override.
-- [ ] **When the car arrives:** the occupied event deletes the reservation with `IF EXISTS`, and clears the blue override if that delete was applied.
+- [x] **Add cancelling:** `DELETE FROM reservations WHERE spot_id = ? IF reserved_by = ?`, so only the holder can cancel. Then clear the override.
+- [x] **When the car arrives:** the occupied event deletes the reservation with `IF EXISTS`, and clears the blue override if that delete was applied.
 - [ ] **Race test:** fire 100 concurrent reserve requests for the same spot. **Exactly 1** should succeed. Repeat without `IF NOT EXISTS` and see that everyone "wins".
-- [ ] **Test the TTL quickly** by setting it to 20 seconds and watching the reservation expire.
+- [x] **Test the TTL quickly** by setting it to 20 seconds and watching the reservation expire.
 
 ### Phase 5: Maintenance (light off) and faults
 
-- [ ] **Add `PUT /spots/{id}/maintenance`:** set `light_override = 'off'` with `USING TTL <hours>`, or set it to null to end maintenance early. Reject reservations for spots under maintenance.
-- [ ] **Return the override in the heartbeat reply.** Check that the sim's light changes within one heartbeat.
-- [ ] **Offline devices:** write heartbeats with `USING TTL 60`. `GET /ops/offline` lists the spots on each level that have no heartbeat row.
-- [ ] **Broken lights:** `GET /ops/faults` compares the expected color (worked out from `occupied` and `light_override`) with `light_reported`. Have `sim` break a bulb on purpose and see it appear here.
+- [x] **Add `PUT /spots/{id}/maintenance`:** set `light_override = 'off'` with `USING TTL <hours>`, or set it to null to end maintenance early. Reject reservations for spots under maintenance.
+- [x] **Return the override in the heartbeat reply.** Check that the sim's light changes within one heartbeat.
+- [x] **Offline devices:** write heartbeats with `USING TTL 60`. `GET /ops/offline` lists the spots on each level that have no heartbeat row.
+- [x] **Broken lights:** `GET /ops/faults` compares the expected color (worked out from `occupied` and `light_override`) with `light_reported`. Have `sim` break a bulb on purpose and see it appear here.
   - *Concept:* the server stores **what it wants** (`light_override`) and **what the device reports** (`light_reported`) separately. Comparing the two is a common IoT pattern for finding faults.
 
 ### Phase 6: Multi-node experiments

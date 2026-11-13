@@ -805,6 +805,7 @@ dependencies = [
  "anyhow",
  "axum",
  "chrono",
+ "futures",
  "scylla",
  "serde",
  "serde_json",
@@ -997,6 +998,7 @@ dependencies = [
  "pin-project-lite",
  "serde",
  "serde_json",
+ "serde_urlencoded",
  "sync_wrapper",
  "tokio",
  "tower",
@@ -1198,6 +1200,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "chrono",
+ "futures",
  "rand 0.10.3",
  "reqwest",
  "serde",

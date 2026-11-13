@@ -17,10 +17,11 @@ rust-version = "1.92"
 anyhow = "1"
 axum = "0.8"
 chrono = { version = "0.4", features = ["serde"] }
+futures = "0.3"
 rand = "0.10"
 # `default-features = false` drops TLS: sim only talks plain HTTP to parkd
 # inside the compose network.
-reqwest = { version = "0.13", default-features = false, features = ["json"] }
+reqwest = { version = "0.13", default-features = false, features = ["json", "query"] }
 # The Rust CQL driver. It works with Apache Cassandra as well as ScyllaDB.
 # `chrono-04` lets CQL `timestamp`/`date` columns map to chrono types.
 scylla = { version = "1", features = ["chrono-04"] }
