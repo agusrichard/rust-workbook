@@ -7,7 +7,7 @@
 use anyhow::Result;
 use chrono::{DateTime, Utc};
 
-use super::{Db, execute_lwt};
+use super::{Db, execute_lwt, strict};
 
 #[derive(Debug)]
 pub enum Reserve {
@@ -98,4 +98,41 @@ pub async fn drop_any(db: &Db, spot_id: &str) -> Result<bool> {
     )
     .await?;
     Ok(lwt.applied)
+}
+
+/// **Phase 4 experiment only. Never use this for real reservations.**
+///
+/// The obvious way to reserve without LWT: read, and insert if nothing is
+/// there. Each step is correct on its own, but 100 concurrent callers all
+/// read "nothing" before any of them inserts, so most of them "win". The
+/// plain inserts then overwrite each other, and the row keeps whichever had
+/// the highest write timestamp. Every caller but one was told a lie.
+///
+/// It also breaks the rule of this module (plain writes into an LWT table),
+/// which is why it lives behind `/internal/`.
+pub async fn reserve_without_lwt(
+    db: &Db,
+    spot_id: &str,
+    reserved_by: &str,
+    reserved_at: DateTime<Utc>,
+    ttl_seconds: i32,
+) -> Result<bool> {
+    let existing = db
+        .execute_unpaged(
+            strict("SELECT reserved_by FROM parkwatch.reservations WHERE spot_id = ?"),
+            (spot_id,),
+        )
+        .await?
+        .into_rows_result()?
+        .maybe_first_row::<(Option<String>,)>()?;
+    if existing.is_some() {
+        return Ok(false);
+    }
+
+    db.execute_unpaged(
+        strict("INSERT INTO parkwatch.reservations (spot_id, reserved_by, reserved_at) VALUES (?, ?, ?) USING TTL ?"),
+        (spot_id, reserved_by, reserved_at, ttl_seconds),
+    )
+    .await?;
+    Ok(true)
 }

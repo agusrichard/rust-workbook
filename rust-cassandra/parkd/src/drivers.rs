@@ -134,3 +134,30 @@ pub async fn cancel(
         reservations::Cancel::NotFound => Err(not_found(format!("{spot} has no reservation"))),
     }
 }
+
+/// `POST /internal/spots/{id}/reserve-without-lwt`: the Phase 4 race test's
+/// broken variant (read, then insert if empty). Answers like `reserve` does,
+/// 201 or 409, so `sim --race-without-lwt` can count how many drivers were
+/// told they won. It doesn't touch the light.
+pub async fn reserve_without_lwt(
+    State(state): State<AppState>,
+    Path(spot): Path<String>,
+    Json(request): Json<ReserveRequest>,
+) -> ApiResult<StatusCode> {
+    let (_, spot_id) = split_spot_id(&spot)?;
+    validate_holder(&request.reserved_by)?;
+    let won = reservations::reserve_without_lwt(
+        &state.db,
+        spot_id,
+        &request.reserved_by,
+        Utc::now(),
+        state.reservation_ttl_seconds,
+    )
+    .await
+    .map_err(internal)?;
+    if won {
+        Ok(StatusCode::CREATED)
+    } else {
+        Err(conflict(format!("someone got {spot} first")))
+    }
+}

@@ -9,7 +9,7 @@ use std::collections::HashSet;
 use anyhow::Result;
 use chrono::{DateTime, Utc};
 
-use super::Db;
+use super::{Db, relaxed};
 use crate::lights::Light;
 
 /// Four missed heartbeats (sent every 15s) and the unit counts as offline.
@@ -26,7 +26,7 @@ pub async fn record(
     // TTL expiry is counted from when the replica stores the write, not from
     // the device timestamp, so a unit with a skewed clock still gets 60s.
     db.execute_unpaged(
-        "INSERT INTO parkwatch.sensor_heartbeats (level, spot_id, battery, light, last_seen) VALUES (?, ?, ?, ?, ?) USING TIMESTAMP ? AND TTL ?",
+        relaxed("INSERT INTO parkwatch.sensor_heartbeats (level, spot_id, battery, light, last_seen) VALUES (?, ?, ?, ?, ?) USING TIMESTAMP ? AND TTL ?"),
         (
             level,
             spot_id,
@@ -45,7 +45,7 @@ pub async fn record(
 pub async fn online_spots(db: &Db, level: &str) -> Result<HashSet<String>> {
     let rows = db
         .execute_unpaged(
-            "SELECT spot_id FROM parkwatch.sensor_heartbeats WHERE level = ?",
+            relaxed("SELECT spot_id FROM parkwatch.sensor_heartbeats WHERE level = ?"),
             (level,),
         )
         .await?

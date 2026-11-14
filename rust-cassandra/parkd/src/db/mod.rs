@@ -5,8 +5,16 @@
 //! - `sessions` owns `active_session_by_plate` (LWT only) and `sessions_by_day`
 //! - `reservations` owns `reservations` (LWT only)
 //! - `heartbeats` owns `sensor_heartbeats`
+//! - `counters` owns `free_count_by_level`
+//! - `passes` owns `passes_by_plate`
+//!
+//! Every statement goes through [`relaxed`] (ONE), [`strict`] (QUORUM) or
+//! [`execute_lwt`] (SERIAL + QUORUM), so the consistency of each feature is
+//! visible where the query is written.
 
+pub mod counters;
 pub mod heartbeats;
+pub mod passes;
 pub mod reservations;
 pub mod sessions;
 pub mod spots;
@@ -21,6 +29,8 @@ use scylla::client::session_builder::SessionBuilder;
 use scylla::errors::{DbError, ExecutionError, RequestAttemptError, WriteType};
 use scylla::response::query_result::QueryResult;
 use scylla::serialize::row::SerializeRow;
+use scylla::statement::unprepared::Statement;
+use scylla::statement::{Consistency, SerialConsistency};
 use scylla::value::{CqlValue, Row};
 use serde::Serialize;
 
@@ -35,7 +45,7 @@ pub type Db = CachingSession;
 /// Creates the complete ParkWatch data model. Every statement is deliberately
 /// idempotent so `parkd --init-schema` is safe to repeat.
 pub async fn init_schema(session: &Session) -> Result<()> {
-    const DDL: [&str; 8] = [
+    const DDL: [&str; 11] = [
         "CREATE KEYSPACE IF NOT EXISTS parkwatch WITH replication = {'class': 'NetworkTopologyStrategy', 'dc1': 3}",
         "CREATE TABLE IF NOT EXISTS parkwatch.spots_by_level (level text, spot_id text, level_name text STATIC, capacity int STATIC, occupied boolean, plate text, light_reported text, light_override text, PRIMARY KEY (level, spot_id))",
         "CREATE TABLE IF NOT EXISTS parkwatch.reservations (spot_id text PRIMARY KEY, reserved_by text, reserved_at timestamp)",
@@ -44,6 +54,13 @@ pub async fn init_schema(session: &Session) -> Result<()> {
         "CREATE TABLE IF NOT EXISTS parkwatch.sessions_by_day (day date, exited_at timestamp, plate text, entered_at timestamp, duration_seconds bigint, fee_cents int, PRIMARY KEY (day, exited_at, plate)) WITH CLUSTERING ORDER BY (exited_at DESC)",
         "CREATE TABLE IF NOT EXISTS parkwatch.spot_events_by_spot_day (spot_id text, day date, ts timestamp, event_type text, plate text, light text, PRIMARY KEY ((spot_id, day), ts)) WITH CLUSTERING ORDER BY (ts DESC) AND default_time_to_live = 2592000",
         "CREATE TABLE IF NOT EXISTS parkwatch.sensor_heartbeats (level text, spot_id text, battery int, light text, last_seen timestamp, PRIMARY KEY (level, spot_id)) WITH default_time_to_live = 60",
+        // Phase 7: the same device state split into 10-spot zones, to compare
+        // with the 3 hot level partitions. Only written when SPOTS_BY_ZONE=on.
+        "CREATE TABLE IF NOT EXISTS parkwatch.spots_by_zone (level text, zone text, spot_id text, occupied boolean, plate text, light_reported text, PRIMARY KEY ((level, zone), spot_id))",
+        // Phase 7: a counter kept next to the real state, to watch it drift.
+        "CREATE TABLE IF NOT EXISTS parkwatch.free_count_by_level (level text PRIMARY KEY, free counter)",
+        // Phase 7: monthly passes, checked at the exit gate.
+        "CREATE TABLE IF NOT EXISTS parkwatch.passes_by_plate (plate text PRIMARY KEY, holder text, valid_until timestamp)",
     ];
 
     for statement in DDL {
@@ -79,7 +96,34 @@ impl Lwt {
     }
 }
 
+/// Device data: occupancy, lights, heartbeats, history, "find my car".
+///
+/// `ONE` means a single replica has to acknowledge, so these keep working
+/// with 2 of 3 nodes down. The price is that a read may hit a replica that
+/// missed the latest write. For a light colour that is fixed by the next
+/// event or heartbeat, and hints and repair bring the replica back in sync.
+pub fn relaxed(cql: impl Into<String>) -> Statement {
+    let mut statement = Statement::new(cql);
+    statement.set_consistency(Consistency::One);
+    statement
+}
+
+/// Money and promises to drivers: sessions, fees, reports, overrides, passes.
+///
+/// `QUORUM` is 2 of 3 replicas. A quorum write and a quorum read always
+/// overlap in at least one replica, so the read sees the write.
+pub fn strict(cql: impl Into<String>) -> Statement {
+    let mut statement = Statement::new(cql);
+    statement.set_consistency(Consistency::Quorum);
+    statement
+}
+
 /// Runs a lightweight transaction and decodes `[applied]`.
+///
+/// The Paxos rounds run at `SERIAL` (a majority of all replicas), and the
+/// commit is written at `QUORUM`. Both need 2 of 3 nodes, so LWTs stop
+/// working when 2 nodes are down. That is the point: the alternative would
+/// be two drivers holding the same spot.
 ///
 /// Paxos rounds on one partition compete with each other. Under heavy
 /// contention (100 drivers reserving one spot) Cassandra gives up with a
@@ -90,8 +134,11 @@ impl Lwt {
 pub async fn execute_lwt(db: &Db, cql: &str, values: impl SerializeRow + Clone) -> Result<Lwt> {
     const ATTEMPTS: u64 = 4;
 
+    let mut statement = strict(cql);
+    statement.set_serial_consistency(Some(SerialConsistency::Serial));
+
     for attempt in 1..=ATTEMPTS {
-        match db.execute_unpaged(cql, values.clone()).await {
+        match db.execute_unpaged(statement.clone(), values.clone()).await {
             Ok(result) => return decode_lwt(result),
             Err(err) if is_cas_timeout(&err) && attempt < ATTEMPTS => {
                 tracing::debug!(attempt, %cql, "LWT contention, retrying");

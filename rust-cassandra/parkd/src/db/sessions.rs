@@ -8,7 +8,7 @@ use scylla::statement::Consistency;
 use scylla::statement::unprepared::Statement;
 use serde::Serialize;
 
-use super::{Db, execute_lwt};
+use super::{Db, execute_lwt, strict};
 
 #[derive(Debug)]
 pub enum Entry {
@@ -79,7 +79,7 @@ pub async fn record_closed(
     fee_cents: i32,
 ) -> Result<()> {
     db.execute_unpaged(
-        "INSERT INTO parkwatch.sessions_by_day (day, exited_at, plate, entered_at, duration_seconds, fee_cents) VALUES (?, ?, ?, ?, ?, ?)",
+        strict("INSERT INTO parkwatch.sessions_by_day (day, exited_at, plate, entered_at, duration_seconds, fee_cents) VALUES (?, ?, ?, ?, ?, ?)"),
         (
             exited_at.date_naive(),
             exited_at,
@@ -119,7 +119,7 @@ pub struct DailyReport {
 pub async fn daily_report(db: &Db, day: NaiveDate) -> Result<DailyReport> {
     let mut rows = db
         .execute_iter(
-            "SELECT duration_seconds, fee_cents FROM parkwatch.sessions_by_day WHERE day = ?",
+            strict("SELECT duration_seconds, fee_cents FROM parkwatch.sessions_by_day WHERE day = ?"),
             (day,),
         )
         .await?

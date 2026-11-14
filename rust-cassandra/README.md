@@ -94,6 +94,7 @@ curl -s localhost:8080/ops/report
 ```sh
 docker compose run --rm sim --race            # 100 drivers, one spot: expect exactly 1 winner
 docker compose run --rm sim --race B1-05      # pick another spot
+docker compose run --rm sim --race-without-lwt  # read-then-insert: many "winners", one row
 
 RESERVATION_TTL_SECONDS=20 docker compose up -d parkd   # quick TTL test
 curl -s -XPOST localhost:8080/spots/B3-39/reserve -H 'content-type: application/json' -d '{"reserved_by":"me"}'
@@ -109,3 +110,106 @@ docker compose logs sim | grep B2-10          # light turns off within one heart
 curl -s localhost:8080/ops/offline
 curl -s localhost:8080/ops/faults
 ```
+
+## Phase 6: multi-node experiments
+
+Each feature picks its consistency where its query is written
+(`parkd/src/db/mod.rs`):
+
+| Feature | Consistency | With 2 of 3 nodes down |
+|---|---|---|
+| Spot events, heartbeats, lights, history, find my car, free spots | `ONE` | keeps working |
+| Overrides, sessions, report, passes | `QUORUM` | 503 |
+| Reservations, gate sessions | LWT (`SERIAL` + `QUORUM`) | 503 |
+
+An occupied event still tries to claim a reservation, but best-effort: if
+the LWT fails, the reservation and its blue light expire by TTL (the spot
+shows red anyway).
+
+```sh
+# Where B2 lives (RF 3 on 3 nodes: every node), and node IPs
+docker compose exec cassandra1 nodetool getendpoints parkwatch spots_by_level B2
+for n in 1 2 3; do docker compose exec cassandra$n hostname -i; done
+
+# Trace: a QUORUM read asks 2 replicas; an LWT does 4 round trips to all 3
+docker compose exec cassandra1 cqlsh -e "CONSISTENCY QUORUM; TRACING ON;
+  SELECT * FROM parkwatch.spots_by_level WHERE level = 'B2' AND spot_id = 'B2-17';"
+
+# Node failures
+docker compose stop cassandra3                 # everything works
+docker compose stop cassandra2                 # gates/reservations 503, lights fine
+docker compose start cassandra2 cassandra3
+
+# Hinted handoff: hint files appear while a node is down and drain on restart
+docker compose stop cassandra3; sleep 60
+docker compose exec cassandra1 ls -la /var/lib/cassandra/hints
+docker compose start cassandra3
+docker compose logs -f cassandra1 | grep 'Finished hinted handoff'
+
+# Repair: make node3 miss data for real, then fix it
+for n in 1 2; do docker compose exec cassandra$n nodetool disablehandoff; done
+docker compose stop cassandra3; sleep 60; docker compose stop sim
+docker compose start cassandra3
+docker compose exec cassandra3 nodetool repair -full parkwatch
+for n in 1 2; do docker compose exec cassandra$n nodetool enablehandoff; done
+```
+
+What happened when this was run:
+
+- **1 node down:** 0 errors. Reserve, cancel, entry, exit with fee, report.
+- **2 nodes down:** occupied/free/heartbeat/find-my-car/free spots all
+  answered. Gates, reservations, maintenance and the report got 503;
+  `cqlsh` shows the real reason, `Cannot achieve consistency level QUORUM
+  ... required_replicas: 2, alive_replicas: 1`.
+- **Hints:** ~95 KB of hints per live node after a minute; delivered and
+  deleted 30 s after node3 started. `nodetool listpendinghints` said "no
+  pending hints" while the files were growing, so look at the hints
+  directory or the `Finished hinted handoff` log line instead.
+- **Repair:** with handoff off, 53 of 120 spot rows differed between node1's
+  and node3's local copies (read at `ONE`, traced to confirm no other replica
+  was asked). `nodetool repair -full` took 3 s; afterwards 0 differed.
+
+## Phase 7: stretch goals
+
+| Endpoint | What it does |
+|---|---|
+| `GET /map` | Live map: every spot as a square, refreshed every 2 s |
+| `GET /spots` | The JSON behind the map (reported vs expected light, online) |
+| `GET /ops/counters` | `free_count_by_level` counter next to the real count |
+| `PUT /passes/{plate}` `{"holder": "...", "days": 30}` | Monthly pass, free exit while valid |
+| `GET`/`DELETE /passes/{plate}` | Look up or revoke a pass |
+
+```sh
+open http://localhost:8080/map
+
+# Hot partition: 10x sim, zone table on, compare writes per partition
+SPOTS_BY_ZONE=on docker compose up -d parkd
+SIM_SPEED=10 docker compose up -d sim
+docker compose exec cassandra1 nodetool toppartitions -a WRITES parkwatch spots_by_level 20000
+docker compose exec cassandra1 nodetool toppartitions -a WRITES parkwatch spots_by_zone 20000
+
+# Counters: drift with duplicates, none without, then kill a node
+curl -s localhost:8080/ops/counters
+SIM_DUPLICATE_RATE=0 SIM_LATE_RATE=0 SIM_SPEED=10 docker compose up -d sim
+docker compose kill cassandra2; curl -s localhost:8080/ops/counters
+docker compose start cassandra2
+
+docker compose up -d parkd sim                 # back to defaults
+```
+
+What happened when this was run:
+
+- **Hot partition:** at 10x, each level partition took ~600 writes in 20 s
+  (~30/s); each of the 12 zone partitions ~150 (~7.5/s). Local write latency
+  was 0.024 ms and the biggest partition 2.7 KB, so at mall scale the level
+  partition is not a problem. Splitting would cost the entrance screen 12
+  reads instead of 3. It starts to matter at thousands of spots per level.
+- **Counters:** with the sim's 10% duplicates and late events, the counter was
+  off by -6/-1/+2 within 3 minutes. With those off, it matched exactly for a
+  minute at 10x. Killing a node caused 78 counter writes to time out with
+  `received: 0` before the failure detector noticed; the drift went up to +6
+  while the sim retried, then back to 0, because the dead node had applied
+  none of them. Had a timed-out write landed (a slow, not dead, replica), the
+  retry would have counted it twice, and nothing can tell.
+- **Passes:** a 3h10m stay costs 0 with a pass and 14000 without. The row has
+  a 30-day TTL. The sim gives 5% of cars a pass.

@@ -11,7 +11,7 @@ use anyhow::Result;
 use chrono::{DateTime, Utc};
 use serde::Serialize;
 
-use super::Db;
+use super::{Db, relaxed, strict};
 use crate::lights::{Light, Override};
 
 /// How long "find my car" remembers a car, in seconds.
@@ -27,7 +27,7 @@ pub async fn seed_spot(
     capacity: i32,
 ) -> Result<()> {
     db.execute_unpaged(
-        "INSERT INTO parkwatch.spots_by_level (level, spot_id, level_name, capacity, occupied, light_reported) VALUES (?, ?, ?, ?, ?, ?)",
+        strict("INSERT INTO parkwatch.spots_by_level (level, spot_id, level_name, capacity, occupied, light_reported) VALUES (?, ?, ?, ?, ?, ?)"),
         (level, spot_id, level_name, capacity, false, "green"),
     )
     .await?;
@@ -47,10 +47,49 @@ pub async fn update_spot_state(
     event_timestamp_micros: i64,
 ) -> Result<()> {
     db.execute_unpaged(
-        "UPDATE parkwatch.spots_by_level USING TIMESTAMP ? SET occupied = ?, plate = ?, light_reported = ? WHERE level = ? AND spot_id = ?",
+        relaxed("UPDATE parkwatch.spots_by_level USING TIMESTAMP ? SET occupied = ?, plate = ?, light_reported = ? WHERE level = ? AND spot_id = ?"),
         (event_timestamp_micros, occupied, plate, light.as_str(), level, spot_id),
     )
     .await?;
+    Ok(())
+}
+
+/// The zone a spot belongs to: spots 1-10 are `Z1`, 11-20 `Z2`, and so on.
+pub fn zone_of(spot_id: &str) -> Option<String> {
+    let number: u32 = spot_id.rsplit_once('-')?.1.parse().ok()?;
+    Some(format!("Z{}", number.saturating_sub(1) / 10 + 1))
+}
+
+/// Phase 7 experiment: the same write as [`update_spot_state`], into a table
+/// partitioned by `(level, zone)`. 3 levels become 12 partitions, so the same
+/// event load is spread over 4 times as many partitions (and token ranges).
+pub async fn update_zone_state(
+    db: &Db,
+    level: &str,
+    spot_id: &str,
+    occupied: Option<(bool, Option<&str>)>,
+    light: Light,
+    event_timestamp_micros: i64,
+) -> Result<()> {
+    let Some(zone) = zone_of(spot_id) else {
+        return Ok(());
+    };
+    match occupied {
+        Some((occupied, plate)) => {
+            db.execute_unpaged(
+                relaxed("UPDATE parkwatch.spots_by_zone USING TIMESTAMP ? SET occupied = ?, plate = ?, light_reported = ? WHERE level = ? AND zone = ? AND spot_id = ?"),
+                (event_timestamp_micros, occupied, plate, light.as_str(), level, zone, spot_id),
+            )
+            .await?;
+        }
+        None => {
+            db.execute_unpaged(
+                relaxed("UPDATE parkwatch.spots_by_zone USING TIMESTAMP ? SET light_reported = ? WHERE level = ? AND zone = ? AND spot_id = ?"),
+                (event_timestamp_micros, light.as_str(), level, zone, spot_id),
+            )
+            .await?;
+        }
+    }
     Ok(())
 }
 
@@ -63,7 +102,7 @@ pub async fn report_light(
     event_timestamp_micros: i64,
 ) -> Result<()> {
     db.execute_unpaged(
-        "UPDATE parkwatch.spots_by_level USING TIMESTAMP ? SET light_reported = ? WHERE level = ? AND spot_id = ?",
+        relaxed("UPDATE parkwatch.spots_by_level USING TIMESTAMP ? SET light_reported = ? WHERE level = ? AND spot_id = ?"),
         (event_timestamp_micros, light.as_str(), level, spot_id),
     )
     .await?;
@@ -81,7 +120,7 @@ pub async fn set_override(
     ttl_seconds: i32,
 ) -> Result<()> {
     db.execute_unpaged(
-        "UPDATE parkwatch.spots_by_level USING TTL ? SET light_override = ? WHERE level = ? AND spot_id = ?",
+        strict("UPDATE parkwatch.spots_by_level USING TTL ? SET light_override = ? WHERE level = ? AND spot_id = ?"),
         (ttl_seconds, override_color.as_str(), level, spot_id),
     )
     .await?;
@@ -108,7 +147,7 @@ pub async fn clear_override_if(
         return Ok(false);
     }
     db.execute_unpaged(
-        "UPDATE parkwatch.spots_by_level SET light_override = null WHERE level = ? AND spot_id = ?",
+        strict("UPDATE parkwatch.spots_by_level SET light_override = null WHERE level = ? AND spot_id = ?"),
         (level, spot_id),
     )
     .await?;
@@ -149,9 +188,9 @@ fn to_spot((spot_id, occupied, plate, reported, override_color): SpotColumns) ->
 pub async fn get_spot(db: &Db, level: &str, spot_id: &str) -> Result<Option<Spot>> {
     let row = db
         .execute_unpaged(
-            format!(
+            relaxed(format!(
                 "SELECT {SPOT_COLUMNS} FROM parkwatch.spots_by_level WHERE level = ? AND spot_id = ?"
-            ),
+            )),
             (level, spot_id),
         )
         .await?
@@ -164,7 +203,9 @@ pub async fn get_spot(db: &Db, level: &str, spot_id: &str) -> Result<Option<Spot
 pub async fn spots_in_level(db: &Db, level: &str) -> Result<Vec<Spot>> {
     let rows = db
         .execute_unpaged(
-            format!("SELECT {SPOT_COLUMNS} FROM parkwatch.spots_by_level WHERE level = ?"),
+            relaxed(format!(
+                "SELECT {SPOT_COLUMNS} FROM parkwatch.spots_by_level WHERE level = ?"
+            )),
             (level,),
         )
         .await?
@@ -190,7 +231,9 @@ pub struct FreeSpots {
 pub async fn free_spots_in_level(db: &Db, level: &str) -> Result<FreeSpots> {
     let rows = db
         .execute_unpaged(
-            "SELECT occupied, light_override, capacity FROM parkwatch.spots_by_level WHERE level = ?",
+            relaxed(
+                "SELECT occupied, light_override, capacity FROM parkwatch.spots_by_level WHERE level = ?",
+            ),
             (level,),
         )
         .await?
@@ -224,7 +267,7 @@ pub async fn record_spot_event(
     light: Light,
 ) -> Result<()> {
     db.execute_unpaged(
-        "INSERT INTO parkwatch.spot_events_by_spot_day (spot_id, day, ts, event_type, plate, light) VALUES (?, ?, ?, ?, ?, ?) USING TIMESTAMP ?",
+        relaxed("INSERT INTO parkwatch.spot_events_by_spot_day (spot_id, day, ts, event_type, plate, light) VALUES (?, ?, ?, ?, ?, ?) USING TIMESTAMP ?"),
         (
             spot_id,
             ts.date_naive(),
@@ -249,7 +292,7 @@ pub async fn set_car_location(
     seen_at: DateTime<Utc>,
 ) -> Result<()> {
     db.execute_unpaged(
-        "INSERT INTO parkwatch.car_location_by_plate (plate, level, spot_id, seen_at) VALUES (?, ?, ?, ?) USING TIMESTAMP ? AND TTL ?",
+        relaxed("INSERT INTO parkwatch.car_location_by_plate (plate, level, spot_id, seen_at) VALUES (?, ?, ?, ?) USING TIMESTAMP ? AND TTL ?"),
         (
             plate,
             level,
@@ -267,7 +310,7 @@ pub async fn set_car_location(
 /// uses the exit camera's timestamp, the same device clock as the insert.
 pub async fn delete_car_location(db: &Db, plate: &str, exited_at: DateTime<Utc>) -> Result<()> {
     db.execute_unpaged(
-        "DELETE FROM parkwatch.car_location_by_plate USING TIMESTAMP ? WHERE plate = ?",
+        relaxed("DELETE FROM parkwatch.car_location_by_plate USING TIMESTAMP ? WHERE plate = ?"),
         (exited_at.timestamp_micros(), plate),
     )
     .await?;
@@ -285,7 +328,9 @@ pub struct CarLocation {
 pub async fn get_car_location(db: &Db, plate: &str) -> Result<Option<CarLocation>> {
     let row = db
         .execute_unpaged(
-            "SELECT level, spot_id, seen_at FROM parkwatch.car_location_by_plate WHERE plate = ?",
+            relaxed(
+                "SELECT level, spot_id, seen_at FROM parkwatch.car_location_by_plate WHERE plate = ?",
+            ),
             (plate,),
         )
         .await?
@@ -297,4 +342,18 @@ pub async fn get_car_location(db: &Db, plate: &str) -> Result<Option<CarLocation
         spot,
         seen_at,
     }))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::zone_of;
+
+    #[test]
+    fn spots_are_grouped_in_tens() {
+        assert_eq!(zone_of("B1-01").as_deref(), Some("Z1"));
+        assert_eq!(zone_of("B1-10").as_deref(), Some("Z1"));
+        assert_eq!(zone_of("B1-11").as_deref(), Some("Z2"));
+        assert_eq!(zone_of("B3-40").as_deref(), Some("Z4"));
+        assert_eq!(zone_of("nonsense"), None);
+    }
 }

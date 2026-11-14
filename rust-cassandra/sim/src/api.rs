@@ -159,6 +159,27 @@ impl Parkd {
         Ok((response.status(), response.text().await?))
     }
 
+    /// The Phase 4 broken variant: check-then-insert, no LWT.
+    pub async fn reserve_without_lwt(&self, spot: &str, reserved_by: &str) -> Result<StatusCode> {
+        let response = self
+            .client
+            .post(format!("{}/internal/spots/{spot}/reserve-without-lwt", self.base))
+            .json(&serde_json::json!({ "reserved_by": reserved_by }))
+            .send()
+            .await?;
+        Ok(response.status())
+    }
+
+    pub async fn buy_pass(&self, plate: &str, holder: &str, days: u32) -> Result<()> {
+        self.client
+            .put(format!("{}/passes/{plate}", self.base))
+            .json(&serde_json::json!({ "holder": holder, "days": days }))
+            .send()
+            .await?
+            .error_for_status()?;
+        Ok(())
+    }
+
     pub async fn cancel(&self, spot: &str, reserved_by: &str) -> Result<StatusCode> {
         let response = self
             .client

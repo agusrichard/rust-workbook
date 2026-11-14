@@ -201,7 +201,7 @@ Design notes:
   - *Concept, TTL as a timer:* both rows expire together, and the light goes back to green with no cleanup job.
 - [x] **Add cancelling:** `DELETE FROM reservations WHERE spot_id = ? IF reserved_by = ?`, so only the holder can cancel. Then clear the override.
 - [x] **When the car arrives:** the occupied event deletes the reservation with `IF EXISTS`, and clears the blue override if that delete was applied.
-- [ ] **Race test:** fire 100 concurrent reserve requests for the same spot. **Exactly 1** should succeed. Repeat without `IF NOT EXISTS` and see that everyone "wins".
+- [x] **Race test:** fire 100 concurrent reserve requests for the same spot. **Exactly 1** should succeed. Repeat without `IF NOT EXISTS` and see that everyone "wins".
 - [x] **Test the TTL quickly** by setting it to 20 seconds and watching the reservation expire.
 
 ### Phase 5: Maintenance (light off) and faults
@@ -214,21 +214,21 @@ Design notes:
 
 ### Phase 6: Multi-node experiments
 
-- [ ] **Find where data lives:** `nodetool getendpoints parkwatch spots_by_level 'B2'` shows which nodes hold level B2.
-- [ ] **Trace a query:** in `cqlsh`, run `TRACING ON;` and then a `SELECT`. The trace shows the coordinator, the replicas it contacted, and timings.
-- [ ] **Stop 1 node** (`docker compose stop cassandra3`). Everything still works: `QUORUM` reads and writes, and LWT reservations and sessions.
-- [ ] **Stop 2 nodes.** Spot events at consistency `ONE` still get written, so lights and occupancy keep updating. Reservations and gate sessions fail, because LWT needs a quorum.
+- [x] **Find where data lives:** `nodetool getendpoints parkwatch spots_by_level 'B2'` shows which nodes hold level B2.
+- [x] **Trace a query:** in `cqlsh`, run `TRACING ON;` and then a `SELECT`. The trace shows the coordinator, the replicas it contacted, and timings.
+- [x] **Stop 1 node** (`docker compose stop cassandra3`). Everything still works: `QUORUM` reads and writes, and LWT reservations and sessions.
+- [x] **Stop 2 nodes.** Spot events at consistency `ONE` still get written, so lights and occupancy keep updating. Reservations and gate sessions fail, because LWT needs a quorum.
   - *Concept:* decide which features must be strict (money and reservations) and which can be relaxed (occupancy).
-- [ ] **Watch hinted handoff:** stop node3, keep the sim running for a minute, and run `nodetool listpendinghints` on node1. Start node3 again and watch the hints drain.
-- [ ] **Repair:** run `nodetool repair parkwatch`, then check that node3 has the same spot states as the others.
+- [x] **Watch hinted handoff:** stop node3, keep the sim running for a minute, and run `nodetool listpendinghints` on node1. Start node3 again and watch the hints drain.
+- [x] **Repair:** run `nodetool repair parkwatch`, then check that node3 has the same spot states as the others.
   - *Concept:* hints, read repair and full repair are the 3 ways Cassandra brings out-of-date copies back in sync.
 
 ### Phase 7: Stretch goals
 
-- [ ] **Measure the hot partition:** run the sim at 10× speed and check `nodetool tablestats parkwatch.spots_by_level`. Then try splitting the partition into `(level, zone)` and compare.
-- [ ] **Counters:** add a `free_count_by_level` counter, kill a node while it's being updated, and compare it with the real count. Counter updates can't be safely retried, so the count drifts.
-- [ ] **Live map:** a small HTML page served by `parkd` that shows every spot as a colored square and refreshes every 2 seconds.
-- [ ] **Monthly pass:** registered plates get free parking, using a `passes_by_plate` table checked at the exit gate.
+- [x] **Measure the hot partition:** run the sim at 10× speed and check `nodetool tablestats parkwatch.spots_by_level`. Then try splitting the partition into `(level, zone)` and compare.
+- [x] **Counters:** add a `free_count_by_level` counter, kill a node while it's being updated, and compare it with the real count. Counter updates can't be safely retried, so the count drifts.
+- [x] **Live map:** a small HTML page served by `parkd` that shows every spot as a colored square and refreshes every 2 seconds.
+- [x] **Monthly pass:** registered plates get free parking, using a `passes_by_plate` table checked at the exit gate.
 
 ### Suggested order
 

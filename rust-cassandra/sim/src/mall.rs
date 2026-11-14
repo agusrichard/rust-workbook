@@ -5,12 +5,18 @@
 //!   first, park, stay a while, leave the spot, and pass the exit camera.
 //! - On purpose: 10% of events are sent twice, 10% of spot events arrive 5s
 //!   late, a few units stop heartbeating, and a few bulbs are broken.
+//! - 5% of cars hold a monthly pass and leave for free.
+//!
+//! Environment knobs (all optional):
+//! - `SIM_SPEED=10` runs every timer 10 times faster (Phase 7 hot partition)
+//! - `SIM_DUPLICATE_RATE=0`, `SIM_LATE_RATE=0` turn the network faults off,
+//!   e.g. to see whether a counter drifts from node failures alone
 
 use std::ops::Range;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use chrono::Utc;
 use rand::seq::SliceRandom;
 use reqwest::StatusCode;
@@ -27,6 +33,7 @@ const DUPLICATE_RATE: f64 = 0.10;
 const LATE_RATE: f64 = 0.10;
 const LATE_BY: Duration = Duration::from_secs(5);
 const RESERVE_RATE: f64 = 0.15;
+const PASS_RATE: f64 = 0.05;
 const BROKEN_BULBS: usize = 2;
 const SILENT_UNITS: usize = 3;
 const SILENT_AFTER: Duration = Duration::from_secs(45);
@@ -58,15 +65,51 @@ impl Unit {
 
 type Units = Arc<Mutex<Vec<Unit>>>;
 
+#[derive(Debug)]
+struct Tuning {
+    speed: f64,
+    duplicate_rate: f64,
+    late_rate: f64,
+}
+
+static TUNING: OnceLock<Tuning> = OnceLock::new();
+
+fn tuning() -> &'static Tuning {
+    TUNING.get().expect("mall::run sets the tuning first")
+}
+
+fn env_f64(name: &str, default: f64, valid: impl Fn(f64) -> bool) -> Result<f64> {
+    let value = match std::env::var(name) {
+        Ok(text) => text.parse().with_context(|| format!("{name} must be a number"))?,
+        Err(_) => default,
+    };
+    anyhow::ensure!(valid(value), "{name}={value} is out of range");
+    Ok(value)
+}
+
+/// Every wait in the sim goes through here, so `SIM_SPEED` scales them all.
+fn sleep(duration: Duration) -> tokio::time::Sleep {
+    tokio::time::sleep(duration.div_f64(tuning().speed))
+}
+
 fn sleep_ms(range: Range<u64>) -> tokio::time::Sleep {
-    tokio::time::sleep(Duration::from_millis(rand::random_range(range)))
+    sleep(Duration::from_millis(rand::random_range(range)))
 }
 
 fn sleep_s(range: Range<u64>) -> tokio::time::Sleep {
-    tokio::time::sleep(Duration::from_secs(rand::random_range(range)))
+    sleep(Duration::from_secs(rand::random_range(range)))
 }
 
 pub async fn run(parkd: Arc<Parkd>, spots_per_level: u16) -> Result<()> {
+    let rate = |r: f64| (0.0..=1.0).contains(&r);
+    let tuning = Tuning {
+        speed: env_f64("SIM_SPEED", 1.0, |s| s > 0.0 && s <= 100.0)?,
+        duplicate_rate: env_f64("SIM_DUPLICATE_RATE", DUPLICATE_RATE, rate)?,
+        late_rate: env_f64("SIM_LATE_RATE", LATE_RATE, rate)?,
+    };
+    tracing::info!(?tuning, "mall tuning");
+    TUNING.set(tuning).ok();
+
     let mut units: Vec<Unit> = LEVELS
         .iter()
         .flat_map(|level| (1..=spots_per_level).map(move |n| format!("{level}-{n:02}")))
@@ -126,6 +169,7 @@ async fn heartbeat_loop(
     stops_after: Option<Duration>,
 ) {
     let started = Instant::now();
+    let silent_after = stops_after.map(|after| after.div_f64(tuning().speed));
     // Spread the 120 units over the interval instead of all at once.
     sleep_ms(0..HEARTBEAT_EVERY.as_millis() as u64).await;
 
@@ -133,7 +177,7 @@ async fn heartbeat_loop(
         let event = {
             let mut units = units.lock().unwrap();
             let unit = &mut units[index];
-            if let Some(after) = stops_after
+            if let Some(after) = silent_after
                 && started.elapsed() >= after
             {
                 tracing::warn!(spot = %unit.spot, "heartbeats stopped (simulated outage)");
@@ -168,13 +212,13 @@ async fn heartbeat_loop(
             }
             Err(err) => tracing::warn!(error = format!("{err:#}"), "heartbeat failed"),
         }
-        tokio::time::sleep(HEARTBEAT_EVERY).await;
+        sleep(HEARTBEAT_EVERY).await;
     }
 }
 
 async fn report_loop(units: Units) {
     loop {
-        tokio::time::sleep(Duration::from_secs(30)).await;
+        sleep(Duration::from_secs(30)).await;
         let units = units.lock().unwrap();
         let occupied = units.iter().filter(|u| u.occupant.is_some()).count();
         let reserved = units
@@ -208,6 +252,10 @@ fn random_plate() -> String {
 /// One car's visit, start to finish.
 async fn car(parkd: &Arc<Parkd>, units: &Units) -> Result<()> {
     let plate = random_plate();
+    if rand::random_bool(PASS_RATE) {
+        parkd.buy_pass(&plate, "sim monthly pass", 30).await?;
+        tracing::info!(%plate, "car holds a monthly pass");
+    }
     send_gate(parkd, "entry-1", Direction::In, &plate).await?;
 
     let reserved = if rand::random_bool(RESERVE_RATE) {
@@ -300,7 +348,7 @@ async fn park(
             deliver(parkd, event);
             return Some(index);
         }
-        tokio::time::sleep(Duration::from_secs(5)).await;
+        sleep(Duration::from_secs(5)).await;
     }
     None
 }
@@ -311,15 +359,15 @@ async fn park(
 fn deliver(parkd: &Arc<Parkd>, event: Event) {
     let parkd = parkd.clone();
     tokio::spawn(async move {
-        if rand::random_bool(LATE_RATE) {
-            tokio::time::sleep(LATE_BY).await;
+        if rand::random_bool(tuning().late_rate) {
+            sleep(LATE_BY).await;
             tracing::info!(?event, "delivering late event");
         }
         if let Err(err) = parkd.send_with_retry(&event).await {
             tracing::warn!(error = format!("{err:#}"), "spot event lost");
             return;
         }
-        if rand::random_bool(DUPLICATE_RATE) {
+        if rand::random_bool(tuning().duplicate_rate) {
             let _ = parkd.send(&event).await;
         }
     });
@@ -340,10 +388,11 @@ async fn send_gate(parkd: &Parkd, gate: &str, direction: Direction, plate: &str)
             %plate,
             stay_seconds = reply["duration_seconds"].as_i64(),
             fee_cents = reply["fee_cents"].as_i64(),
+            pass_holder = reply["pass_holder"].as_str(),
             "car exited"
         );
     }
-    if rand::random_bool(DUPLICATE_RATE) {
+    if rand::random_bool(tuning().duplicate_rate) {
         let duplicate = parkd.send(&event).await?;
         tracing::debug!(%plate, %gate, reply = %duplicate, "duplicate gate read");
     }

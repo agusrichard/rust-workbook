@@ -9,6 +9,7 @@ mod error;
 mod events;
 mod fees;
 mod lights;
+mod map;
 mod ops;
 
 use std::sync::Arc;
@@ -21,7 +22,7 @@ use axum::{Json, Router};
 use serde::{Deserialize, Serialize};
 use tracing_subscriber::EnvFilter;
 
-use crate::db::{Db, spots};
+use crate::db::{Db, counters, spots};
 use crate::error::{ApiResult, bad_request, internal};
 
 #[derive(Clone)]
@@ -30,6 +31,9 @@ pub struct AppState {
     /// How long a reservation (and its blue light) lasts. 900 in production;
     /// set `RESERVATION_TTL_SECONDS=20` to watch one expire quickly.
     reservation_ttl_seconds: i32,
+    /// Phase 7: also write device state into `spots_by_zone`
+    /// (`SPOTS_BY_ZONE=on`), to compare partition load.
+    spots_by_zone: bool,
 }
 
 #[tokio::main]
@@ -58,6 +62,8 @@ async fn main() -> Result<()> {
         reservation_ttl_seconds > 0,
         "RESERVATION_TTL_SECONDS must be positive"
     );
+
+    let spots_by_zone = std::env::var("SPOTS_BY_ZONE").is_ok_and(|value| value == "on");
 
     tracing::info!(?contact_points, "connecting to Cassandra");
     let session = db::connect(&contact_points).await?;
@@ -91,6 +97,7 @@ async fn main() -> Result<()> {
     let state = AppState {
         db: Arc::new(Db::from(session, 256)),
         reservation_ttl_seconds,
+        spots_by_zone,
     };
     let app = Router::new()
         .route("/health", get(health))
@@ -108,13 +115,25 @@ async fn main() -> Result<()> {
         .route("/ops/offline", get(ops::offline))
         .route("/ops/faults", get(ops::faults))
         .route("/ops/report", get(ops::report))
+        .route("/ops/counters", get(ops::counters))
+        .route(
+            "/passes/{plate}",
+            put(ops::put_pass).get(ops::get_pass).delete(ops::delete_pass),
+        )
+        // Live map
+        .route("/map", get(map::page))
+        .route("/spots", get(map::all_spots))
         // This is an internal bootstrap route used by `sim --seed`, rather
         // than an operator-facing part of the public API.
         .route("/internal/seed", post(seed))
+        .route(
+            "/internal/spots/{id}/reserve-without-lwt",
+            post(drivers::reserve_without_lwt),
+        )
         .with_state(state);
 
     let listener = tokio::net::TcpListener::bind(&listen_addr).await?;
-    tracing::info!(%listen_addr, reservation_ttl_seconds, "parkd listening");
+    tracing::info!(%listen_addr, reservation_ttl_seconds, spots_by_zone, "parkd listening");
     axum::serve(listener, app).await?;
     Ok(())
 }
@@ -165,6 +184,10 @@ async fn seed(
             .map_err(internal)?;
             spots += 1;
         }
+        // Every spot is empty again, so the counter starts at full capacity.
+        counters::reset_free(&state.db, level, i64::from(request.spots_per_level))
+            .await
+            .map_err(internal)?;
     }
     tracing::info!(spots, "seeded simulator spots");
     Ok(Json(SeedResponse { spots }))

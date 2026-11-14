@@ -5,7 +5,12 @@
 //! sim --seed           create 3 levels x 40 empty spots, then exit
 //! sim --timestamps     seed, then send duplicate and late spot events (Phase 2)
 //! sim --race [SPOT]    100 concurrent reservations for one spot (Phase 4)
+//! sim --race-without-lwt [SPOT]
+//!                      the same race with check-then-insert instead of LWT
 //! ```
+//!
+//! The mall reads `SIM_SPEED`, `SIM_DUPLICATE_RATE` and `SIM_LATE_RATE`; see
+//! `mall.rs`.
 
 mod api;
 mod lights;
@@ -45,9 +50,14 @@ async fn main() -> Result<()> {
     match args.first().map(String::as_str) {
         // The race doesn't reseed: resetting every spot mid-run would fight
         // with a mall simulation that may be running next to it.
-        Some("--race") => {
+        Some(flag @ ("--race" | "--race-without-lwt")) => {
             let spot = args.get(1).map_or(DEFAULT_RACE_SPOT, String::as_str);
-            race::run(&parkd, spot, RACERS).await
+            let mode = if flag == "--race" {
+                race::Mode::Lwt
+            } else {
+                race::Mode::WithoutLwt
+            };
+            race::run(&parkd, spot, RACERS, mode).await
         }
         Some("--seed") => seed(&parkd).await,
         Some("--timestamps") => {

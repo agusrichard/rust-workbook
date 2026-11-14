@@ -1,14 +1,16 @@
-//! Operator endpoints: maintenance, offline devices, broken lights, daily report.
+//! Operator endpoints: maintenance, offline devices, broken lights, daily
+//! report, the counter drift check and monthly passes.
 
 use axum::Json;
 use axum::extract::{Path, Query, State};
-use chrono::{NaiveDate, Utc};
+use axum::http::StatusCode;
+use chrono::{NaiveDate, TimeDelta, Utc};
 use futures::future::try_join_all;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
 use crate::AppState;
-use crate::db::{self, heartbeats, reservations, sessions, spots};
+use crate::db::{self, counters, heartbeats, passes, reservations, sessions, spots};
 use crate::error::{ApiResult, bad_request, internal, not_found, split_spot_id};
 use crate::lights::{Light, Override, expected_light};
 
@@ -176,4 +178,98 @@ pub async fn report(
         .await
         .map(Json)
         .map_err(internal)
+}
+
+#[derive(Debug, Serialize)]
+pub struct CounterCheck {
+    level: String,
+    /// What `free_count_by_level` says.
+    counter: i64,
+    /// Unoccupied spots, counted from `spots_by_level`.
+    actual: usize,
+    /// `counter - actual`. Anything but 0 is drift.
+    drift: i64,
+}
+
+/// Phase 7: the counter next to the truth. The counter counts unoccupied
+/// spots (overrides don't matter to it), so `actual` does the same.
+pub async fn counters(State(state): State<AppState>) -> ApiResult<Json<Vec<CounterCheck>>> {
+    let db = &state.db;
+    let levels = try_join_all(db::LEVELS.iter().map(|level| async move {
+        let (counter, all) = tokio::try_join!(
+            counters::free(db, level),
+            spots::spots_in_level(db, level),
+        )?;
+        let actual = all.iter().filter(|spot| !spot.occupied).count();
+        anyhow::Ok(CounterCheck {
+            level: (*level).to_owned(),
+            counter,
+            actual,
+            drift: counter - actual as i64,
+        })
+    }))
+    .await
+    .map_err(internal)?;
+    Ok(Json(levels))
+}
+
+/// Longest pass sold: one year.
+const MAX_PASS_DAYS: u32 = 366;
+
+#[derive(Debug, Deserialize)]
+pub struct PassRequest {
+    holder: String,
+    #[serde(default = "default_pass_days")]
+    days: u32,
+}
+
+fn default_pass_days() -> u32 {
+    30
+}
+
+/// `PUT /passes/{plate}` `{ "holder": "...", "days": 30 }`. Parking is free at
+/// the exit gate while the pass is valid.
+pub async fn put_pass(
+    State(state): State<AppState>,
+    Path(plate): Path<String>,
+    Json(request): Json<PassRequest>,
+) -> ApiResult<Json<passes::Pass>> {
+    if request.holder.trim().is_empty() || request.holder.len() > 64 {
+        return Err(bad_request("holder must be 1 to 64 characters"));
+    }
+    if !(1..=MAX_PASS_DAYS).contains(&request.days) {
+        return Err(bad_request(format!("days must be 1 to {MAX_PASS_DAYS}")));
+    }
+    let ttl_seconds = request.days as i32 * 24 * 3600;
+    let pass = passes::Pass {
+        plate,
+        holder: request.holder,
+        valid_until: Utc::now() + TimeDelta::seconds(i64::from(ttl_seconds)),
+    };
+    passes::put(&state.db, &pass, ttl_seconds)
+        .await
+        .map_err(internal)?;
+    tracing::info!(plate = %pass.plate, holder = %pass.holder, valid_until = %pass.valid_until, "pass issued");
+    Ok(Json(pass))
+}
+
+pub async fn get_pass(
+    State(state): State<AppState>,
+    Path(plate): Path<String>,
+) -> ApiResult<Json<passes::Pass>> {
+    passes::get(&state.db, &plate)
+        .await
+        .map_err(internal)?
+        .map(Json)
+        .ok_or_else(|| not_found(format!("no pass for {plate}")))
+}
+
+pub async fn delete_pass(
+    State(state): State<AppState>,
+    Path(plate): Path<String>,
+) -> ApiResult<StatusCode> {
+    passes::delete(&state.db, &plate)
+        .await
+        .map_err(internal)?;
+    Ok(StatusCode::NO_CONTENT)
 }

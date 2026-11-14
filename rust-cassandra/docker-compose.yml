@@ -96,6 +96,9 @@ services:
       # 900 = 15 minutes. For a quick TTL test:
       #   RESERVATION_TTL_SECONDS=20 docker compose up -d parkd
       RESERVATION_TTL_SECONDS: ${RESERVATION_TTL_SECONDS:-900}
+      # Phase 7: also write device state partitioned by (level, zone).
+      #   SPOTS_BY_ZONE=on docker compose up -d parkd
+      SPOTS_BY_ZONE: ${SPOTS_BY_ZONE:-off}
     ports:
       - "127.0.0.1:8080:8080"
     depends_on:
@@ -115,6 +118,11 @@ services:
     environment:
       RUST_LOG: info
       PARKD_URL: http://parkd:8080
+      # Optional knobs, see sim/src/mall.rs. For example 10x speed:
+      #   SIM_SPEED=10 docker compose up -d sim
+      SIM_SPEED: ${SIM_SPEED:-1}
+      SIM_DUPLICATE_RATE: ${SIM_DUPLICATE_RATE:-0.1}
+      SIM_LATE_RATE: ${SIM_LATE_RATE:-0.1}
     # sim seeds 3 x 40 spots, then runs the mall until stopped: cars come and
     # go, units heartbeat every 15s, and a few faults are planted on purpose.
     # One-off modes: `docker compose run --rm sim --timestamps` or `--race`.
