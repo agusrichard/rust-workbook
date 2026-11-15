@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ParkWatch live map</title>
+<style>
+  :root {
+    --bg: #f6f7f9; --panel: #ffffff; --text: #1c2330; --muted: #677084; --line: #dfe3ea;
+    --green: #1f9d55; --red: #d64545; --blue: #2f6fdb; --off: #2b3140; --warn: #e0a100;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #12151b; --panel: #1a1f27; --text: #e6e9ef; --muted: #8b93a5; --line: #2a313d;
+      --off: #05070a;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font: 14px/1.4 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width: 760px; margin: 0 auto; padding: 24px 16px 40px; }
+  header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  h1 { font-size: 20px; margin: 0; }
+  #status { color: var(--muted); font-variant-numeric: tabular-nums; }
+  #status.stale { color: var(--red); }
+  .legend { display: flex; gap: 14px; flex-wrap: wrap; margin: 12px 0 20px; color: var(--muted); font-size: 13px; }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .legend i { width: 14px; height: 14px; border-radius: 3px; display: inline-block; }
+  section { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px 16px; margin-bottom: 14px; }
+  section h2 { font-size: 15px; margin: 0 0 10px; display: flex; justify-content: space-between; }
+  section h2 small { color: var(--muted); font-weight: 400; font-variant-numeric: tabular-nums; }
+  .grid { display: grid; grid-template-columns: repeat(10, 1fr); gap: 6px; }
+  .spot { aspect-ratio: 1; border-radius: 5px; position: relative; display: grid; place-items: center;
+          font-size: 10px; color: rgba(255,255,255,.85); font-variant-numeric: tabular-nums;
+          transition: background-color .3s; cursor: default; }
+  .green { background: var(--green); } .red { background: var(--red); }
+  .blue { background: var(--blue); } .off { background: var(--off); }
+  .unknown { background: var(--line); color: var(--muted); }
+  .fault { outline: 3px solid var(--warn); outline-offset: 1px; }
+  .offline { opacity: .35; background-image: repeating-linear-gradient(45deg, transparent 0 4px, rgba(0,0,0,.35) 4px 6px); }
+  @media (max-width: 480px) { .spot { font-size: 0; } }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>ParkWatch live map</h1>
+    <div id="status">loading…</div>
+  </header>
+  <div class="legend">
+    <span><i class="green"></i>free</span>
+    <span><i class="red"></i>taken</span>
+    <span><i class="blue"></i>reserved</span>
+    <span><i class="off"></i>maintenance</span>
+    <span><i class="unknown fault"></i>light differs from expected</span>
+    <span><i class="green offline"></i>no heartbeat (offline)</span>
+  </div>
+  <div id="levels"></div>
+</main>
+<script>
+  // Squares show what each unit *reports* its light is. A yellow outline
+  // marks spots where that differs from what the server expects.
+  const levelsEl = document.getElementById("levels");
+  const statusEl = document.getElementById("status");
+  const sections = new Map();
+
+  function sectionFor(level) {
+    if (!sections.has(level)) {
+      const section = document.createElement("section");
+      section.innerHTML = `<h2><span>${level}</span><small></small></h2><div class="grid"></div>`;
+      levelsEl.appendChild(section);
+      sections.set(level, section);
+    }
+    return sections.get(level);
+  }
+
+  function render(levels) {
+    for (const level of levels) {
+      const section = sectionFor(level.level);
+      section.querySelector("small").textContent = `${level.free} free of ${level.spots.length}`;
+      const grid = section.querySelector(".grid");
+      grid.replaceChildren(...level.spots.map((spot) => {
+        const el = document.createElement("div");
+        const shown = spot.reported ?? "unknown";
+        el.className = `spot ${shown}`;
+        if (spot.reported && spot.reported !== spot.expected) el.classList.add("fault");
+        if (!spot.online) el.classList.add("offline");
+        el.textContent = spot.spot.split("-")[1];
+        el.title = [
+          spot.spot,
+          spot.plate ? `car ${spot.plate}` : "empty",
+          `shows ${shown}, expected ${spot.expected}`,
+          spot.light_override ? `override ${spot.light_override}` : null,
+          spot.online ? null : "offline",
+        ].filter(Boolean).join("\n");
+        return el;
+      }));
+    }
+  }
+
+  async function refresh() {
+    try {
+      const response = await fetch("/spots", { cache: "no-store" });
+      if (!response.ok) throw new Error(`${response.status} ${await response.text()}`);
+      render(await response.json());
+      statusEl.textContent = `updated ${new Date().toLocaleTimeString()}`;
+      statusEl.classList.remove("stale");
+    } catch (err) {
+      statusEl.textContent = `update failed: ${err.message}`;
+      statusEl.classList.add("stale");
+    } finally {
+      setTimeout(refresh, 2000);
+    }
+  }
+  refresh();
+</script>
+</body>
+</html>

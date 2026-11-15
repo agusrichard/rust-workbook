@@ -1,0 +1,32 @@
+# Cargo workspace for ParkWatch Mall.
+#   parkd: the axum HTTP service (device ingest + driver/operator queries)
+#   sim:   simulated spot units and gate cameras
+[workspace]
+resolver = "3"
+members = ["parkd", "sim"]
+
+[workspace.package]
+edition = "2024"
+version = "0.1.0"
+# Matches the local toolchain. Cargo picks dependency versions that support it
+# (the newest scylla, 1.10, needs 1.94). Bump after `rustup update`.
+rust-version = "1.92"
+
+# Versions are pinned once here; each crate opts in with `{ workspace = true }`.
+[workspace.dependencies]
+anyhow = "1"
+axum = "0.8"
+chrono = { version = "0.4", features = ["serde"] }
+futures = "0.3"
+rand = "0.10"
+# `default-features = false` drops TLS: sim only talks plain HTTP to parkd
+# inside the compose network.
+reqwest = { version = "0.13", default-features = false, features = ["json", "query"] }
+# The Rust CQL driver. It works with Apache Cassandra as well as ScyllaDB.
+# `chrono-04` lets CQL `timestamp`/`date` columns map to chrono types.
+scylla = { version = "1", features = ["chrono-04"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["full"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }

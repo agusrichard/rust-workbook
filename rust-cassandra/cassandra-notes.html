@@ -1,0 +1,609 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cassandra Notes</title>
+<style>
+  :root {
+    --bg: #ffffff;
+    --fg: #1f2328;
+    --muted: #59636e;
+    --line: #d8dee4;
+    --code-bg: #f3f4f6;
+    --note-bg: #f0f6ff;
+    --note-line: #8bb4f0;
+    --warn-bg: #fff8e6;
+    --warn-line: #e0b84a;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #16181c;
+      --fg: #e6e8eb;
+      --muted: #9aa3ad;
+      --line: #30353c;
+      --code-bg: #1f2329;
+      --note-bg: #17233a;
+      --note-line: #3f6db3;
+      --warn-bg: #2b2414;
+      --warn-line: #8f7429;
+    }
+  }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--fg);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    line-height: 1.65;
+    font-size: 17px;
+  }
+  main { max-width: 760px; margin: 0 auto; padding: 32px 16px 80px; }
+  h1 { font-size: 2rem; margin-bottom: 4px; }
+  h2 { margin-top: 48px; padding-top: 16px; border-top: 1px solid var(--line); }
+  h3 { margin-top: 28px; }
+  .subtitle { color: var(--muted); margin-top: 0; }
+  code, pre { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 0.9em; }
+  code { background: var(--code-bg); padding: 1px 5px; border-radius: 4px; }
+  pre { background: var(--code-bg); padding: 14px 16px; border-radius: 6px; overflow-x: auto; line-height: 1.5; }
+  pre code { background: none; padding: 0; }
+  table { border-collapse: collapse; width: 100%; margin: 16px 0; font-size: 0.95em; }
+  th, td { border: 1px solid var(--line); padding: 8px 10px; text-align: left; vertical-align: top; }
+  th { background: var(--code-bg); }
+  .table-wrap { overflow-x: auto; }
+  .note, .warn { padding: 12px 16px; border-left: 4px solid; border-radius: 4px; margin: 20px 0; }
+  .note { background: var(--note-bg); border-color: var(--note-line); }
+  .warn { background: var(--warn-bg); border-color: var(--warn-line); }
+  .toc { background: var(--code-bg); padding: 12px 24px; border-radius: 6px; }
+  .toc ol { margin: 8px 0; padding-left: 20px; }
+  a { color: inherit; }
+</style>
+</head>
+<body>
+<main>
+
+<h1>Apache Cassandra, Explained Simply</h1>
+<p class="subtitle">A beginner-friendly reading guide: what it is, how it works, and how to model data for it.</p>
+
+<div class="toc">
+  <strong>Contents</strong>
+  <ol>
+    <li><a href="#what">What is Cassandra?</a></li>
+    <li><a href="#why">Why would I use it?</a></li>
+    <li><a href="#ring">The cluster: a ring of equal nodes</a></li>
+    <li><a href="#replication">Replication: keeping copies</a></li>
+    <li><a href="#consistency">Consistency levels: you choose the trade-off</a></li>
+    <li><a href="#writes">How writes and reads work inside a node</a></li>
+    <li><a href="#model">The data model: keyspaces, tables, keys</a></li>
+    <li><a href="#modeling">Data modeling: design around your queries</a></li>
+    <li><a href="#cql">CQL cheat sheet</a></li>
+    <li><a href="#gotchas">Common gotchas</a></li>
+    <li><a href="#when">When to use it (and when not to)</a></li>
+    <li><a href="#start">Try it yourself</a></li>
+    <li><a href="#glossary">Glossary</a></li>
+  </ol>
+</div>
+
+<!-- ============================================================ -->
+<h2 id="what">1. What is Cassandra?</h2>
+
+<p>
+Apache Cassandra is a <strong>distributed NoSQL database</strong>. "Distributed" means your data does not live on one
+machine. It is spread across many machines (called <strong>nodes</strong>) that work together as one database
+(called a <strong>cluster</strong>).
+</p>
+
+<p>
+It was built at Facebook around 2008 to power inbox search, then open-sourced and became an Apache project.
+Its design borrows from two famous systems:
+</p>
+<ul>
+  <li><strong>Amazon Dynamo</strong>: how data is spread across machines and kept available.</li>
+  <li><strong>Google Bigtable</strong>: how data is stored on disk (rows grouped together, fast writes).</li>
+</ul>
+
+<p>
+You talk to Cassandra using <strong>CQL</strong> (Cassandra Query Language). It looks a lot like SQL,
+which makes it easy to start with, but it behaves quite differently underneath. There are no joins, and
+how you query is limited by how you design your tables.
+</p>
+
+<div class="note">
+<strong>One-sentence summary:</strong> Cassandra is a database that spreads data across many equal machines,
+keeps several copies of everything, never has a single point of failure, and is extremely fast at writes.
+</div>
+
+<!-- ============================================================ -->
+<h2 id="why">2. Why would I use it?</h2>
+
+<ul>
+  <li><strong>It doesn't go down.</strong> There is no "main" server. If a node dies, the others keep serving requests.</li>
+  <li><strong>It scales horizontally.</strong> Need more capacity? Add more nodes. Throughput grows roughly in a straight line as you add machines.</li>
+  <li><strong>Writes are very fast.</strong> A write is basically "append to a log + update memory". No disk seeking, no locking.</li>
+  <li><strong>Multi-datacenter support is built in.</strong> You can keep copies of your data in different regions (e.g. US and Europe) out of the box.</li>
+</ul>
+
+<p>The price you pay for this: less flexible queries, and (by default) <em>eventual consistency</em>. We will cover both.</p>
+
+<!-- ============================================================ -->
+<h2 id="ring">3. The cluster: a ring of equal nodes</h2>
+
+<p>
+In many databases, one server is the "leader" and others follow. Cassandra is different:
+<strong>every node is equal</strong> (this is called a <em>peer-to-peer</em> or <em>masterless</em> design).
+Any node can accept any read or write.
+</p>
+
+<h3>How does Cassandra know where data lives?</h3>
+
+<p>
+Every row has a <strong>partition key</strong> (for example <code>user_id</code>). Cassandra runs that key through a
+hash function, which turns it into a big number called a <strong>token</strong>. Picture all possible tokens arranged in a circle,
+the <strong>ring</strong>. Each node owns some ranges on that ring. The row goes to whichever node owns its token.
+</p>
+
+<pre>
+                 Node A
+              (tokens 0-24)
+            .-''''''''''-.
+          /                \
+   Node D |                 | Node B
+  (75-99) |      RING       | (25-49)
+          \                /
+            '-..........-'
+                 Node C
+              (tokens 50-74)
+
+  hash("user_42") = 37   -->  lands on Node B
+  hash("user_7")  = 81   -->  lands on Node D
+</pre>
+
+<p>
+(Real tokens are huge 64-bit numbers, and each node actually owns many small ranges, called <em>virtual nodes</em>
+or <em>vnodes</em>, so data spreads evenly. The idea stays the same.)
+</p>
+
+<h3>The coordinator</h3>
+<p>
+Your app can send a request to <em>any</em> node. That node becomes the <strong>coordinator</strong> for that request.
+It figures out which nodes hold the data, forwards the request to them, and returns the answer to you.
+Smart drivers usually send the request straight to a node that holds the data, saving a hop.
+</p>
+
+<h3>Gossip</h3>
+<p>
+How do nodes know who is alive? Every second, each node chats with a few others and swaps news
+("Node C is up, Node D seems down"). This is called the <strong>gossip protocol</strong>. News spreads quickly
+through the whole cluster, with no central registry needed.
+</p>
+
+<!-- ============================================================ -->
+<h2 id="replication">4. Replication: keeping copies</h2>
+
+<p>
+Storing each row on just one node would be risky. Lose that node, lose the data. So Cassandra stores
+several copies, called <strong>replicas</strong>. How many copies is the <strong>replication factor (RF)</strong>.
+</p>
+
+<p>
+With <code>RF = 3</code>, the row goes to the node that owns its token, plus the next two nodes clockwise around the ring.
+</p>
+
+<pre>
+  hash("user_42") lands on Node B
+
+  RF = 3  -->  copies stored on  Node B, Node C, Node D
+</pre>
+
+<p>You set replication per <strong>keyspace</strong> (a keyspace is like a "database" in SQL terms):</p>
+
+<pre><code>-- Simple: fine for local testing, single datacenter
+CREATE KEYSPACE shop
+  WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 3};
+
+-- Production: lets you set copies per datacenter
+CREATE KEYSPACE shop
+  WITH replication = {'class': 'NetworkTopologyStrategy', 'us_east': 3, 'eu_west': 3};</code></pre>
+
+<div class="note">
+<strong>Rule of thumb:</strong> <code>RF = 3</code> is the common choice in production. It survives one node failing
+while still allowing majority (quorum) reads and writes.
+</div>
+
+<!-- ============================================================ -->
+<h2 id="consistency">5. Consistency levels: you choose the trade-off</h2>
+
+<p>
+Since there are several copies, a question comes up: <em>when I write, how many replicas must confirm before
+I call it a success?</em> And when I read, <em>how many replicas must I ask?</em>
+Cassandra lets you choose this <strong>per query</strong>. This is called <strong>tunable consistency</strong>.
+</p>
+
+<div class="table-wrap">
+<table>
+  <tr><th>Level</th><th>Meaning (with RF = 3)</th><th>Trade-off</th></tr>
+  <tr><td><code>ONE</code></td><td>1 replica must respond</td><td>Fastest, most available, but may read stale data</td></tr>
+  <tr><td><code>QUORUM</code></td><td>A majority must respond (2 of 3)</td><td>Good balance of speed and correctness</td></tr>
+  <tr><td><code>LOCAL_QUORUM</code></td><td>A majority within the local datacenter</td><td>Like QUORUM, but avoids slow cross-region trips. Very common in production.</td></tr>
+  <tr><td><code>ALL</code></td><td>All 3 replicas must respond</td><td>Strongest, but fails if any single replica is down</td></tr>
+</table>
+</div>
+
+<h3>The magic formula</h3>
+<p>
+If <strong>(replicas written) + (replicas read) &gt; RF</strong>, your read is guaranteed to see the latest write,
+because the read set and the write set must overlap on at least one node.
+</p>
+
+<pre>
+  RF = 3
+  Write at QUORUM (2) + Read at QUORUM (2) = 4  &gt; 3   --&gt;  always see latest data
+  Write at ONE    (1) + Read at ONE    (1) = 2  &lt;= 3  --&gt;  might see old data
+</pre>
+
+<h3>How stale copies get fixed</h3>
+<p>Replicas can drift apart (a node was down during a write, for example). Cassandra repairs them in three ways:</p>
+<ul>
+  <li><strong>Hinted handoff:</strong> if a replica is down, the coordinator keeps a "hint" (a note of the missed write) and replays it when the node returns.</li>
+  <li><strong>Read repair:</strong> when a read notices replicas disagree, the newest value is written back to the stale ones.</li>
+  <li><strong>Anti-entropy repair:</strong> an operator runs <code>nodetool repair</code> regularly to compare and sync all data between replicas.</li>
+</ul>
+
+<p>
+When two writes conflict, Cassandra keeps the one with the newest timestamp. This is called <strong>last write wins</strong>.
+</p>
+
+<!-- ============================================================ -->
+<h2 id="writes">6. How writes and reads work inside a node</h2>
+
+<h3>The write path (why writes are so fast)</h3>
+<ol>
+  <li><strong>Commit log:</strong> the write is appended to a log file on disk. Appending is cheap, and it means the data survives a crash.</li>
+  <li><strong>Memtable:</strong> the write is also put into an in-memory, sorted table.</li>
+  <li><strong>Done!</strong> The node replies "OK". No reading, no searching, no updating files in place.</li>
+  <li><strong>Flush (later):</strong> when the memtable gets full, it is written to disk as an <strong>SSTable</strong> (Sorted String Table). SSTables are <em>immutable</em>: once written, never changed.</li>
+  <li><strong>Compaction (later):</strong> over time many SSTables pile up. A background process merges them, keeps the newest version of each row, and drops deleted data.</li>
+</ol>
+
+<pre>
+  write --&gt; [ commit log (disk, append) ]
+        --&gt; [ memtable  (memory)      ] --flush--&gt; [ SSTable ] [ SSTable ] [ SSTable ]
+                                                         \________ compaction ________/
+                                                                       |
+                                                                  [ SSTable ]
+</pre>
+
+<div class="note">
+<strong>Key insight:</strong> in Cassandra, an UPDATE is just another write with a newer timestamp,
+and a DELETE is <em>also</em> a write (a marker called a tombstone). Nothing is changed in place.
+</div>
+
+<h3>The read path</h3>
+<p>
+A read may need to look in the memtable <em>and</em> several SSTables, then merge the results by timestamp.
+To avoid opening every file, Cassandra uses helpers:
+</p>
+<ul>
+  <li><strong>Bloom filter:</strong> a tiny in-memory structure that quickly answers "this SSTable definitely does <em>not</em> have that key", so it can be skipped.</li>
+  <li><strong>Partition index / summary:</strong> tells Cassandra where in the file the partition starts.</li>
+  <li><strong>Caches:</strong> optional key and row caches for hot data.</li>
+</ul>
+<p>This is why reads are generally slower than writes, and why compaction matters: fewer SSTables means faster reads.</p>
+
+<!-- ============================================================ -->
+<h2 id="model">7. The data model: keyspaces, tables, keys</h2>
+
+<div class="table-wrap">
+<table>
+  <tr><th>Cassandra</th><th>Rough SQL equivalent</th></tr>
+  <tr><td>Cluster</td><td>The whole database server setup</td></tr>
+  <tr><td>Keyspace</td><td>Database / schema (also sets replication)</td></tr>
+  <tr><td>Table</td><td>Table</td></tr>
+  <tr><td>Partition</td><td>A group of rows stored together on the same nodes (no direct SQL equivalent)</td></tr>
+  <tr><td>Row</td><td>Row</td></tr>
+</table>
+</div>
+
+<h3>The primary key has two parts</h3>
+<p>This is <em>the</em> most important concept in Cassandra:</p>
+
+<pre><code>CREATE TABLE messages_by_room (
+  room_id    text,
+  sent_at    timestamp,
+  message_id uuid,
+  author     text,
+  body       text,
+  PRIMARY KEY ((room_id), sent_at, message_id)
+) WITH CLUSTERING ORDER BY (sent_at DESC, message_id ASC);</code></pre>
+
+<ul>
+  <li>
+    <strong>Partition key</strong>: <code>(room_id)</code>, inside the inner parentheses.
+    It decides <em>which nodes</em> store the data. All rows with the same <code>room_id</code> live together in one partition.
+  </li>
+  <li>
+    <strong>Clustering columns</strong>: <code>sent_at, message_id</code>.
+    They decide the <em>sort order of rows inside the partition</em>. Here, messages in a room are stored newest-first.
+  </li>
+</ul>
+
+<p>Think of it like a filing cabinet:</p>
+<pre>
+  Partition key     = which drawer        (room "rust-lovers")
+  Clustering columns = order of folders    (sorted by time, newest first)
+  Row               = one folder          (one message)
+</pre>
+
+<p>
+Because rows in a partition are stored together and already sorted, a query like
+"give me the latest 50 messages in room X" is one fast, sequential read from one place.
+</p>
+
+<p>
+The partition key can have several columns, e.g. <code>PRIMARY KEY ((sensor_id, day), reading_time)</code>.
+This is a common trick to stop a partition from growing forever (one partition per sensor <em>per day</em>).
+</p>
+
+<!-- ============================================================ -->
+<h2 id="modeling">8. Data modeling: design around your queries</h2>
+
+<p>
+In SQL you usually design tables around your <em>entities</em> (users, orders, products), normalize them,
+and use joins to answer any question later. <strong>Cassandra flips this around.</strong>
+</p>
+
+<div class="note">
+<strong>Golden rule:</strong> start from the queries your app needs, then build <strong>one table per query</strong>.
+</div>
+
+<h3>Principles</h3>
+<ol>
+  <li><strong>List your queries first.</strong> "Get user by email", "Get orders for a user, newest first", and so on.</li>
+  <li><strong>Each query should hit one partition.</strong> Pick the partition key so the answer lives in one place.</li>
+  <li><strong>Duplicate data on purpose.</strong> Storing the same data in several tables is normal and expected (this is called <em>denormalization</em>). Disk is cheap; cross-node lookups are expensive.</li>
+  <li><strong>No joins.</strong> If you need data together, store it together.</li>
+  <li><strong>Keep partitions a reasonable size.</strong> A common guideline is under ~100 MB and ~100,000 rows per partition. Split with a time bucket if needed.</li>
+  <li><strong>Spread load evenly.</strong> Avoid a partition key where one value gets most of the traffic (a "hot partition").</li>
+</ol>
+
+<h3>Example: a tiny shop</h3>
+<p>Queries we need:</p>
+<ul>
+  <li>Q1: Find a user by email</li>
+  <li>Q2: List a user's orders, newest first</li>
+</ul>
+
+<pre><code>-- Q1
+CREATE TABLE users_by_email (
+  email   text PRIMARY KEY,
+  user_id uuid,
+  name    text
+);
+
+-- Q2
+CREATE TABLE orders_by_user (
+  user_id    uuid,
+  ordered_at timestamp,
+  order_id   uuid,
+  total      decimal,
+  status     text,
+  PRIMARY KEY ((user_id), ordered_at, order_id)
+) WITH CLUSTERING ORDER BY (ordered_at DESC, order_id ASC);</code></pre>
+
+<pre><code>-- Both are single-partition, fast queries:
+SELECT * FROM users_by_email WHERE email = 'ana@example.com';
+SELECT * FROM orders_by_user WHERE user_id = 5b6f... LIMIT 20;</code></pre>
+
+<p>
+Need "orders by status" too? You would create a <em>third</em> table, <code>orders_by_status</code>,
+and write each order to both tables. Writes are cheap, so this is fine.
+</p>
+
+<h3>What you can and cannot filter on</h3>
+<ul>
+  <li>You must provide the <strong>full partition key</strong> (with <code>=</code> or <code>IN</code>).</li>
+  <li>You can filter clustering columns <strong>in order</strong>, left to right, with a range only on the last one you use.</li>
+  <li>Filtering on a regular (non-key) column is rejected unless you add <code>ALLOW FILTERING</code>, which usually means "scan a lot of data". Avoid it in production.</li>
+</ul>
+
+<!-- ============================================================ -->
+<h2 id="cql">9. CQL cheat sheet</h2>
+
+<pre><code>-- Keyspace
+CREATE KEYSPACE demo WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 1};
+USE demo;
+
+-- Table
+CREATE TABLE users (
+  user_id uuid PRIMARY KEY,
+  name    text,
+  email   text,
+  tags    set&lt;text&gt;
+);
+
+-- Insert (note: INSERT and UPDATE are both "upserts")
+INSERT INTO users (user_id, name, email, tags)
+VALUES (uuid(), 'Ana', 'ana@example.com', {'admin'});
+
+-- Insert that expires after 1 hour (TTL in seconds)
+INSERT INTO users (user_id, name) VALUES (uuid(), 'Temp') USING TTL 3600;
+
+-- Update
+UPDATE users SET name = 'Ana Maria' WHERE user_id = 1f2e...;
+
+-- Add to a collection
+UPDATE users SET tags = tags + {'beta'} WHERE user_id = 1f2e...;
+
+-- Delete a row (or just one column)
+DELETE FROM users WHERE user_id = 1f2e...;
+DELETE email FROM users WHERE user_id = 1f2e...;
+
+-- Only insert if it does not exist (lightweight transaction, slower)
+INSERT INTO users_by_email (email, user_id, name)
+VALUES ('ana@example.com', 1f2e..., 'Ana') IF NOT EXISTS;
+
+-- Counters live in their own tables
+CREATE TABLE page_views (page text PRIMARY KEY, views counter);
+UPDATE page_views SET views = views + 1 WHERE page = '/home';
+
+-- Batch: keep several tables in sync (atomic, not a speed trick)
+BEGIN BATCH
+  INSERT INTO orders_by_user   (...) VALUES (...);
+  INSERT INTO orders_by_status (...) VALUES (...);
+APPLY BATCH;
+
+-- Set consistency level inside cqlsh
+CONSISTENCY QUORUM;</code></pre>
+
+<h3>Useful data types</h3>
+<div class="table-wrap">
+<table>
+  <tr><th>Type</th><th>Use for</th></tr>
+  <tr><td><code>text</code>, <code>int</code>, <code>bigint</code>, <code>boolean</code>, <code>decimal</code></td><td>Usual basics</td></tr>
+  <tr><td><code>uuid</code></td><td>Random unique IDs</td></tr>
+  <tr><td><code>timeuuid</code></td><td>Unique IDs that also sort by time (great as clustering columns)</td></tr>
+  <tr><td><code>timestamp</code>, <code>date</code></td><td>Points in time / calendar days</td></tr>
+  <tr><td><code>list</code>, <code>set</code>, <code>map</code></td><td>Small collections inside a row</td></tr>
+  <tr><td><code>counter</code></td><td>Increment-only numbers (in dedicated tables)</td></tr>
+</table>
+</div>
+
+<!-- ============================================================ -->
+<h2 id="gotchas">10. Common gotchas</h2>
+
+<div class="warn">
+<strong>Tombstones.</strong> A delete writes a marker instead of removing data. Tombstones are kept for
+<code>gc_grace_seconds</code> (10 days by default) so all replicas learn about the delete. Lots of deletes in one partition
+(for example using a table as a queue) make reads slow, because Cassandra has to skip over all those markers.
+</div>
+
+<div class="warn">
+<strong>Large or unbounded partitions.</strong> A partition key like <code>country</code> or <code>status</code>
+puts huge amounts of data in one place. Add a bucket (like a day or month) to the partition key.
+</div>
+
+<div class="warn">
+<strong>Thinking in SQL.</strong> No joins, no ad-hoc queries, no foreign keys. If a new query appears, you usually
+need a new table.
+</div>
+
+<div class="warn">
+<strong>Secondary indexes and <code>ALLOW FILTERING</code>.</strong> They exist, but can query many nodes at once
+and get slow at scale. (Cassandra 5.0 adds Storage-Attached Indexes, SAI, which are much better, but query-first
+table design is still the default approach.)
+</div>
+
+<div class="warn">
+<strong>Lightweight transactions (<code>IF ...</code>)</strong> use a consensus protocol (Paxos) and take several round trips.
+Use them only where you truly need "check then write", like claiming a unique username.
+</div>
+
+<div class="warn">
+<strong>Batches are not for speed.</strong> A batch across many partitions puts extra work on the coordinator.
+Use batches to keep denormalized tables in sync, not to bulk-load data.
+</div>
+
+<!-- ============================================================ -->
+<h2 id="when">11. When to use it (and when not to)</h2>
+
+<h3>Great fit</h3>
+<ul>
+  <li>Huge write volume: event logs, IoT sensor data, metrics, activity feeds</li>
+  <li>Time-series data (data naturally partitioned by device/user + time)</li>
+  <li>Apps that must stay up even when machines or whole datacenters fail</li>
+  <li>Data spread across multiple regions</li>
+  <li>Access patterns you know in advance</li>
+</ul>
+
+<h3>Poor fit</h3>
+<ul>
+  <li>Small datasets that fit easily on one machine. PostgreSQL will be simpler.</li>
+  <li>Lots of ad-hoc queries, reporting, or analytics with joins and aggregates</li>
+  <li>Strong multi-row transactions (e.g. moving money between accounts atomically)</li>
+  <li>Workloads with heavy deletes or queue-like behavior</li>
+</ul>
+
+<h3>Quick comparison</h3>
+<div class="table-wrap">
+<table>
+  <tr><th></th><th>PostgreSQL (typical SQL)</th><th>Cassandra</th></tr>
+  <tr><td>Scaling</td><td>Mostly vertical (bigger machine) + read replicas</td><td>Horizontal (more machines)</td></tr>
+  <tr><td>Architecture</td><td>Primary + replicas</td><td>All nodes equal</td></tr>
+  <tr><td>Queries</td><td>Flexible, joins, ad-hoc</td><td>Fixed by table design, no joins</td></tr>
+  <tr><td>Consistency</td><td>Strong, ACID transactions</td><td>Tunable, eventual by default</td></tr>
+  <tr><td>Schema design</td><td>Model entities, normalize</td><td>Model queries, denormalize</td></tr>
+  <tr><td>Best at</td><td>General-purpose, relational data</td><td>Massive writes, high availability</td></tr>
+</table>
+</div>
+
+<!-- ============================================================ -->
+<h2 id="start">12. Try it yourself</h2>
+
+<p>The quickest way to play with Cassandra is Docker:</p>
+
+<pre><code># Start a single node (takes ~30-60 seconds to be ready)
+docker run --name cassandra -d -p 9042:9042 cassandra:5.0
+
+# Check it is up (look for "UN" = Up/Normal)
+docker exec -it cassandra nodetool status
+
+# Open the CQL shell
+docker exec -it cassandra cqlsh</code></pre>
+
+<p>Then paste the examples from the cheat sheet above.</p>
+
+<p>
+<strong>From Rust:</strong> the <code>scylla</code> crate is a popular async driver that also works with Apache Cassandra
+(it speaks the same CQL protocol on port 9042).
+</p>
+
+<h3>Exercises to cement the ideas</h3>
+<ol>
+  <li>Create a keyspace and the <code>messages_by_room</code> table. Insert a few messages and read the latest 10 for one room.</li>
+  <li>Try <code>SELECT * FROM messages_by_room WHERE author = 'ana';</code> and read the error. Why is it rejected?</li>
+  <li>Design tables for a URL shortener: "look up the long URL by short code" and "list a user's links, newest first".</li>
+  <li>Insert a row with <code>USING TTL 30</code> and watch it disappear.</li>
+  <li>Use <code>IF NOT EXISTS</code> to make sure a username can only be claimed once.</li>
+</ol>
+
+<!-- ============================================================ -->
+<h2 id="glossary">13. Glossary</h2>
+
+<div class="table-wrap">
+<table>
+  <tr><th>Term</th><th>Meaning</th></tr>
+  <tr><td>Node</td><td>One Cassandra server</td></tr>
+  <tr><td>Cluster</td><td>All nodes working together as one database</td></tr>
+  <tr><td>Datacenter</td><td>A group of nodes, often in one region</td></tr>
+  <tr><td>Keyspace</td><td>Container for tables; defines replication</td></tr>
+  <tr><td>Partition key</td><td>Part of the primary key that decides which nodes store the data</td></tr>
+  <tr><td>Clustering column</td><td>Part of the primary key that sorts rows within a partition</td></tr>
+  <tr><td>Token / Ring</td><td>Hash of the partition key / circle of all token values split among nodes</td></tr>
+  <tr><td>Vnode</td><td>A small token range; each node owns many, for even spread</td></tr>
+  <tr><td>Replication factor (RF)</td><td>How many copies of each row exist</td></tr>
+  <tr><td>Consistency level</td><td>How many replicas must answer a read or write</td></tr>
+  <tr><td>Coordinator</td><td>The node handling your request and talking to replicas</td></tr>
+  <tr><td>Gossip</td><td>How nodes share who is up or down</td></tr>
+  <tr><td>Commit log</td><td>Append-only log on disk for crash safety</td></tr>
+  <tr><td>Memtable</td><td>In-memory buffer of recent writes</td></tr>
+  <tr><td>SSTable</td><td>Immutable data file on disk</td></tr>
+  <tr><td>Compaction</td><td>Merging SSTables to clean up old versions and deletes</td></tr>
+  <tr><td>Tombstone</td><td>Marker recording a delete</td></tr>
+  <tr><td>Hinted handoff</td><td>Saving missed writes for a down node, to replay later</td></tr>
+  <tr><td>Repair</td><td>Process that syncs data between replicas</td></tr>
+  <tr><td>TTL</td><td>Time-to-live: data auto-expires after N seconds</td></tr>
+  <tr><td>CQL</td><td>Cassandra Query Language, SQL-like syntax</td></tr>
+</table>
+</div>
+
+<h3>The five things to remember</h3>
+<ol>
+  <li>All nodes are equal. No single point of failure.</li>
+  <li>The partition key decides where data lives; clustering columns decide its order.</li>
+  <li>Design one table per query, and duplicate data freely.</li>
+  <li>Consistency is a per-query choice. <code>QUORUM</code> reads plus <code>QUORUM</code> writes gives you up-to-date reads.</li>
+  <li>Writes are appends. Updates and deletes are just newer writes, cleaned up later by compaction.</li>
+</ol>
+
+</main>
+</body>
+</html>
